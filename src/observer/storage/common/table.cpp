@@ -60,7 +60,7 @@ RC Table::create(const char *path, const char *name, const char *base_dir, int a
     return RC::INVALID_ARGUMENT;
   }
 
-  RC rc = RC::SUCCESS;
+  RC rc;
 
   // 使用 table_name.table记录一个表的元数据
   // 判断表文件是否已经存在
@@ -226,6 +226,8 @@ RC Table::insert_record(Trx *trx, Record *record) {
   }
   return rc;
 }
+
+
 RC Table::insert_record(Trx *trx, int value_num, const Value *values) {
   if (value_num <= 0 || nullptr == values ) {
     LOG_ERROR("Invalid argument. value num=%d, values=%p", value_num, values);
@@ -254,6 +256,8 @@ const char *Table::name() const {
 const TableMeta &Table::table_meta() const {
   return table_meta_;
 }
+
+
 
 RC Table::make_record(int value_num, const Value *values, char * &record_out) {
   // 检查字段类型是否一致
@@ -519,8 +523,97 @@ RC Table::create_index(Trx *trx, const char *index_name, const char *attribute_n
   return rc;
 }
 
-RC Table::update_record(Trx *trx, const char *attribute_name, const Value *value, int condition_num, const Condition conditions[], int *updated_count) {
-  return RC::GENERIC_ERROR;
+class RecordUpdater {
+public:
+    RecordUpdater(Table &table, Trx *trx, const char *attribute_name, const Value *value):value_(value),attribute_name_(attribute_name),table_(table),trx_(trx){
+    }
+
+    RC update_record(Record *record) {
+        RC rc;
+        rc = table_.update_record(trx_, record, attribute_name_, value_);
+        if (rc == RC::SUCCESS) {
+            updated_count_++;
+        }else if(rc == RC::RECORD){
+            rc = RC::SUCCESS;
+        }
+        return rc;
+    }
+
+    int updated_count() const {
+        return updated_count_;
+    }
+
+private:
+    const Value *value_;
+    const char *attribute_name_;
+    Table & table_;
+    Trx *trx_;
+    int updated_count_ = 0;
+};
+
+static RC record_reader_update_adapter(Record *record, void *context) {
+    RecordUpdater &record_updater = *(RecordUpdater *)context;
+    return record_updater.update_record(record);
+}
+
+
+RC Table::update_record(Trx *trx, ConditionFilter *filter, const char *attribute_name, const Value *value,  int *updated_count) {
+    RecordUpdater updater(*this, trx, attribute_name, value);
+    RC rc = scan_record(trx, filter, -1, &updater, record_reader_update_adapter);
+    if (updated_count != nullptr) {
+        *updated_count = updater.updated_count();
+    }
+    return rc;
+}
+
+RC Table::commit_update(Trx *trx, const RID &rid){
+    Record record;
+    RC rc = record_handler_->get_record(&rid, &record);
+    if (rc != RC::SUCCESS) {
+        return rc;
+    }
+
+    return trx->commit_update(this, record);
+}
+
+RC Table::update_record(Trx *trx, Record *record, const char *attribute_name, const Value *value) {
+    int32_t record_trx_id;
+    bool record_deleted;
+    Trx::get_record_trx_id(this, *record, record_trx_id, record_deleted);
+    if(trx->get_trx_id() == record_trx_id && record_trx_id != 0){
+        return RC::RECORD;
+    }
+
+    RC rc = delete_record(trx, record);
+    if(rc != RC::SUCCESS){
+        return rc;
+    }
+
+    int value_num = 0;
+    Value values[MAX_NUM];
+
+    const int normal_field_start_index = table_meta_.sys_field_num();
+
+
+    for(int i = normal_field_start_index; i < table_meta_.field_num(); i++){
+
+        const FieldMeta * field = table_meta_.field(i);
+        int j = i - normal_field_start_index;
+        int len = field->len();
+        if (strcmp(attribute_name, field->name()) == 0){
+            values[j].data = new char[len];
+            values[j].type = value->type;
+            memcpy(values[j].data, value->data, len);
+        }else{
+            values[j].type = field->type();
+            len = field->len();
+            values[j].data = new char[len];
+            memcpy(values[j].data, record->data + field->offset(), len);
+        }
+        value_num++;
+    }
+    rc = insert_record(trx, value_num, values);
+    return rc;
 }
 
 class RecordDeleter {
