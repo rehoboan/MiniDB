@@ -1,0 +1,10 @@
+#vscode
+.vscode/
+
+#build
+build/
+
+#submodule
+deps/googletest/
+deps/jsoncpp/
+deps/libevent/

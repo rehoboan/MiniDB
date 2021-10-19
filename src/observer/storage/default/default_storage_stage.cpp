@@ -232,7 +232,12 @@ void DefaultStorageStage::handle_event(StageEvent *event) {
       snprintf(response, sizeof(response), "%s", ss.str().c_str());
     }
     break;
-
+  case SCF_DROP_TABLE: {
+    const char *table_name = sql->sstr.drop_table.relation_name;
+    rc = handler_->drop_table(current_db, table_name);
+    snprintf(response, sizeof(response), "%s", rc == RC::SUCCESS ? "SUCCESS" : "FAILURE");
+    }
+    break;
   case SCF_LOAD_DATA: {
       /*
         从文件导入数据，如果做性能测试，需要保持这些代码可以正常工作
