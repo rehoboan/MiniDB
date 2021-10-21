@@ -111,6 +111,48 @@ RC Table::create(const char *path, const char *name, const char *base_dir, int a
   return rc;
 }
 
+RC Table::drop(const char *path, const char *name, const char *base_dir) {
+
+  if (nullptr == name || common::is_blank(name)) {
+    LOG_WARN("Name cannot be empty");
+    return RC::INVALID_ARGUMENT;
+  }
+  LOG_INFO("Begin to drop table %s:%s", base_dir, name);
+
+  RC rc = RC::SUCCESS;
+
+  //删除 table_name的meta文件（field meta index meta），data文件
+  //todo判断表文件是否存在，不存在则报错
+  std::string data_file = std::string(base_dir) + "/" + name + TABLE_DATA_SUFFIX;
+  if(remove(path)){
+    rc = RC::IOERR_DELETE;
+    LOG_ERROR("Failed to delete table meta file. name:%s, ret:%d", name, rc);
+    return rc;
+  } else {
+    if(data_buffer_pool_ == nullptr)
+      data_buffer_pool_ = theGlobalDiskBufferPool();
+    //删除data file
+    rc = data_buffer_pool_->delete_file(data_file.c_str());
+    if(rc != RC::SUCCESS) {
+      LOG_ERROR("Failed to delete data file. file name=%s, ret:%d", data_file.c_str(), rc);
+      return rc;      
+    }
+    //循环删除index文件
+    for(int i=0; i< table_meta_.index_num(); i++){
+      const IndexMeta* idm = table_meta_.index(i);
+      std::string index_file = index_data_file(base_dir_.c_str(), name, idm->name());
+      rc = data_buffer_pool_->delete_file(index_file.c_str());
+      if(rc != RC::SUCCESS) {
+        LOG_ERROR("Failed to delete index file. file name %s,ret:%d", index_file.c_str(), rc);
+        return rc;
+      }
+    }
+  }
+
+  LOG_INFO("Successfully drop table %s:%s", base_dir, name);
+  return rc;
+}
+
 RC Table::open(const char *meta_file, const char *base_dir) {
   // 加载元数据文件
   std::fstream fs;

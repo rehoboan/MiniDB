@@ -71,6 +71,30 @@ RC Db::create_table(const char *table_name, int attribute_count, const AttrInfo 
   return RC::SUCCESS;
 }
 
+RC Db::drop_table(const char *table_name) {
+  RC rc = RC::SUCCESS;
+  //check table_name
+  auto kv = opened_tables_.find(table_name);
+  if(kv == opened_tables_.end()) {
+    return RC::SCHEMA_TABLE_NOT_EXIST;
+  } 
+  Table *table = kv->second;
+  //得到table的meta文件路径
+  std::string table_file_path = table_meta_file(path_.c_str(), table_name);
+  //删除table对应的meta文件和数据文件，关闭table
+  rc = table->drop(table_file_path.c_str(), table_name, path_.c_str());
+  if(rc != RC::SUCCESS) {
+    return rc;
+  }
+  //在打开表列表中删除
+  opened_tables_[table_name] = nullptr;
+  delete table;
+  opened_tables_.erase(kv);
+  LOG_INFO("Drop table success. Table name=%s", table_name);
+  
+  return RC::SUCCESS;
+}
+
 Table *Db::find_table(const char *table_name) const {
   std::unordered_map<std::string, Table *>::const_iterator iter = opened_tables_.find(table_name);
   if (iter != opened_tables_.end()) {
