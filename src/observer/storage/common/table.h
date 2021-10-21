@@ -50,6 +50,14 @@ public:
    * @param base_dir 表所在的文件夹，表记录数据文件、索引数据文件存放位置
    */
   RC open(const char *meta_file, const char *base_dir);
+
+  /**
+   * 删除一个表
+   * @param path 元数据保存的文件（完整路径）
+   * @param name 表名
+   * @param base_dir 表数据存放的路径
+   */
+  RC drop(const char *path, const char *name, const char *base_dir);
   
   RC insert_record(Trx *trx, int value_num, const Value *values);
 

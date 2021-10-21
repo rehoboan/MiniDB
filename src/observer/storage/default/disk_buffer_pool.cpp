@@ -174,6 +174,33 @@ RC DiskBufferPool::close_file(int file_id)
   return RC::SUCCESS;
 }
 
+RC DiskBufferPool::delete_file(const char *file_name){
+  //先查找open_list,判断有没有打开，若没有打开，直接删除，若打开过，则需要close file再删除
+    int fd, i, file_id;
+    int rc = RC::SUCCESS;
+  // This part isn't gentle, the better method is using LRU queue.
+  for (i = 0; i < MAX_OPEN_FILE; i++) {
+    if (open_list_[i]) {
+      if (!strcmp(open_list_[i]->file_name, file_name)) {
+        file_id = i;
+        rc = close_file(file_id);
+        break;
+      }
+    }
+  }
+  if(RC::SUCCESS != rc) {
+    LOG_ERROR("Failed to delete file %d:%s due to close error.", file_id, file_name);
+    return RC::IOERR_DELETE;
+  }
+  //删除文件
+  if(remove(file_name)){
+    LOG_ERROR("Failed to delete file %d:%s", file_id, file_name);
+    return RC::IOERR_DELETE;
+  }
+  LOG_INFO("SUCCESS to delete file %d:%s", file_id, file_name);
+  return RC::SUCCESS;
+}
+
 RC DiskBufferPool::get_this_page(int file_id, PageNum page_num, BPPageHandle *page_handle)
 {
   RC tmp;
@@ -488,7 +515,7 @@ RC DiskBufferPool::allocate_block(Frame **buffer)
     LOG_ERROR("All pages have been used and pinned.");
     return RC::NOMEM;
   }
-
+//replace
   if (bp_manager_.frame[min].dirty) {
     RC rc = flush_block(&(bp_manager_.frame[min]));
     if (rc != RC::SUCCESS) {

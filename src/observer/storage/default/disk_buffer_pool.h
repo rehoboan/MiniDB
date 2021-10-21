@@ -133,6 +133,12 @@ public:
   RC close_file(int file_id);
 
   /**
+   * 删除file_name对应的分页文件
+   */
+  RC delete_file(const char* file_name);
+  
+
+  /**
    * 根据文件ID和页号获取指定页面到缓冲区，返回页面句柄指针。
    * @return
    */
