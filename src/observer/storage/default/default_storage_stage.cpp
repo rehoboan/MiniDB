@@ -188,7 +188,7 @@ void DefaultStorageStage::handle_event(StageEvent *event) {
     break;
   case SCF_CREATE_TABLE: { // create table
       const CreateTable &create_table = sql->sstr.create_table;
-      rc = handler_->create_table(current_db, create_table.relation_name, 
+      rc = handler_->create_table(current_db, create_table.relation_name,
               create_table.attribute_count, create_table.attributes);
       snprintf(response, sizeof(response), "%s\n", rc == RC::SUCCESS ? "SUCCESS" : "FAILURE");
     }
@@ -202,7 +202,7 @@ void DefaultStorageStage::handle_event(StageEvent *event) {
       break;
   case SCF_CREATE_INDEX: {
       const CreateIndex &create_index = sql->sstr.create_index;
-      rc = handler_->create_index(current_trx, current_db, create_index.relation_name, 
+      rc = handler_->create_index(current_trx, current_db, create_index.relation_name,
                                   create_index.index_name, create_index.attribute_name);
       snprintf(response, sizeof(response), "%s\n", rc == RC::SUCCESS ? "SUCCESS" : "FAILURE");
     }
@@ -237,12 +237,6 @@ void DefaultStorageStage::handle_event(StageEvent *event) {
         ss << "No such table: " << table_name << std::endl;
       }
       snprintf(response, sizeof(response), "%s", ss.str().c_str());
-    }
-    break;
-  case SCF_DROP_TABLE: {
-    const char *table_name = sql->sstr.drop_table.relation_name;
-    rc = handler_->drop_table(current_db, table_name);
-    snprintf(response, sizeof(response), "%s", rc == RC::SUCCESS ? "SUCCESS" : "FAILURE");
     }
     break;
   case SCF_LOAD_DATA: {
