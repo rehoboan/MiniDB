@@ -71,6 +71,7 @@ RC Db::create_table(const char *table_name, int attribute_count, const AttrInfo 
   return RC::SUCCESS;
 }
 
+
 RC Db::drop_table(const char *table_name) {
   RC rc = RC::SUCCESS;
   //check table_name

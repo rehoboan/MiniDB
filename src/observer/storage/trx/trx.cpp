@@ -61,7 +61,7 @@ RC Trx::insert_record(Table *table, Record *record) {
   start_if_not_started();
 
   // 设置record中trx_field为当前的事务号
-  // set_record_trx_id(table, record, trx_id_, false);
+  set_record_trx_id(table, *record, trx_id_, false);
   // 记录到operations中
   insert_operation(table, Operation::Type::INSERT, record->rid);
   return rc;
@@ -82,6 +82,27 @@ RC Trx::delete_record(Table *table, Record *record) {
   set_record_trx_id(table, *record, trx_id_, true);
   insert_operation(table, Operation::Type::DELETE, record->rid);
   return rc;
+}
+
+RC Trx::update_record(Table *table, Record *record, const char *attribute_name, const Value *value){
+    RC rc = RC::SUCCESS;
+    start_if_not_started();
+
+    Operation *old_oper = find_operation(table, record->rid);
+    if (old_oper != nullptr) {
+        if (old_oper->type() == Operation::Type::UPDATE) {
+            return RC::SUCCESS;
+        } else if(old_oper->type() == Operation::Type::INSERT){
+            delete_operation(table, record->rid);
+            insert_operation(table, Operation::Type::UPDATE, record->rid);
+            return RC::SUCCESS;
+        }else{
+            return RC::GENERIC_ERROR;
+        }
+    }
+    set_record_trx_id(table, *record, trx_id_, false);
+    insert_operation(table, Operation::Type::UPDATE, record->rid);
+    return rc;
 }
 
 void Trx::set_record_trx_id(Table *table, Record &record, int32_t trx_id, bool deleted) const {
@@ -220,6 +241,11 @@ RC Trx::rollback() {
 RC Trx::commit_insert(Table *table, Record &record) {
   set_record_trx_id(table, record, 0, false);
   return RC::SUCCESS;
+}
+
+RC Trx::commit_update(Table *table, Record &record) {
+    set_record_trx_id(table, record, 0, false);
+    return RC::SUCCESS;
 }
 
 RC Trx::rollback_delete(Table *table, Record &record) {

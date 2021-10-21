@@ -88,20 +88,25 @@ public:
 public:
   RC insert_record(Table *table, Record *record);
   RC delete_record(Table *table, Record *record);
+  RC update_record(Table *table, Record *record, const char *attribute_name, const Value *value);
 
   RC commit();
   RC rollback();
 
   RC commit_insert(Table *table, Record &record);
+  RC commit_update(Table *table, Record &record);
   RC rollback_delete(Table *table, Record &record);
 
   bool is_visible(Table *table, const Record *record);
 
   void init_trx_info(Table *table, Record &record);
 
-private:
+public:
   void set_record_trx_id(Table *table, Record &record, int32_t trx_id, bool deleted) const;
   static void get_record_trx_id(Table *table, const Record &record, int32_t &trx_id, bool &deleted);
+  int32_t get_trx_id(){
+        return trx_id_;
+    }
 
 private:
   using OperationSet = std::unordered_set<Operation, OperationHasher, OperationEqualer>;
@@ -110,11 +115,13 @@ private:
   void insert_operation(Table *table, Operation::Type type, const RID &rid);
   void delete_operation(Table *table, const RID &rid);
 
+
 private:
   void start_if_not_started();
 private:
   int32_t  trx_id_ = 0;
   std::unordered_map<Table *, OperationSet> operations_;
+
 };
 
 #endif // __OBSERVER_STORAGE_TRX_TRX_H_
