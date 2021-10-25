@@ -15,11 +15,12 @@ See the Mulan PSL v2 for more details. */
 #ifndef __OBSERVER_SQL_EXECUTOR_VALUE_H_
 #define __OBSERVER_SQL_EXECUTOR_VALUE_H_
 
-#include <string.h>
-#include <time.h>
+#include <cstring>
+#include <ctime>
 #include <string>
 #include <ostream>
 #include "sql/parser/parse.h"
+#include "storage/common/condition_filter.h"
 
 class TupleValue {
 public:
@@ -36,28 +37,28 @@ private:
 
 class IntValue : public TupleValue {
 public:
-    explicit IntValue(int value) : value_(value), type_(INTS) {
-    }
+      explicit IntValue(int value) : value_(value), type_(INTS) {
+        }
 
 //    explicit IntValue() : value_(NULL_VALUE), type_(INTS), is_null_(true) {
 //    }
 
-  void to_string(std::ostream &os) const override;
+      void to_string(std::ostream &os) const override;
 
-  int compare(const TupleValue &other) const override;
+      int compare(const TupleValue &other) const override;
 
-    void set_value(int value);
+      void set_value(int value);
 
-    const void *get_value() const override;
+      const void *get_value() const override;
 
-    int get_type() const override;
+      int get_type() const override;
 
-    bool is_null() const override;
+      bool is_null() const override;
 
 private:
   int value_;
   int type_;
-    bool is_null_ = false;
+  bool is_null_ = false;
 };
 
 class FloatValue : public TupleValue {
@@ -78,7 +79,7 @@ public:
     bool is_null() const override;
 
 private:
-  float value_;
+    float value_;
     int type_;
     bool is_null_ = false;
 };
@@ -87,8 +88,8 @@ class StringValue : public TupleValue {
 public:
     explicit StringValue(const char *value, int len) : value_(value, len), type_(CHARS){
     }
-  explicit StringValue(const char *value) : value_(value) {
-  }
+    explicit StringValue(const char *value) : value_(value) {
+    }
 
     void to_string(std::ostream &os) const override;
 
@@ -102,7 +103,7 @@ public:
 
     bool is_null() const override;
 private:
-  std::string value_;
+    std::string value_;
     int type_;
     bool is_null_ = false;
 };
@@ -128,8 +129,8 @@ public:
 
     bool is_null() const override;
 private:
-    time_t str_to_time_t(const std::string *str) const;
-    std::string time_t_to_str(time_t time) const;
+    static time_t str_to_time_t(const std::string *str) ;
+    static std::string time_t_to_str(time_t time) ;
 private:
     std::string value_;
     int type_;

@@ -55,57 +55,43 @@ void value_init_string(Value *value, const char *v) {
 
 void value_init_date(Value *value, const char *v) {
 
-    int days[13]={0,31,28,31,30,31,30,31,31,30,31,30,31};
+    int days[12]={31,28,31,30,31,30,31,31,30,31,30,31};
+
     value->type = DATES;
+    value->data = malloc(MAX_DATE_LEN + 1);
 
-    value->data = malloc(MAX_DATE_LEN+1);
+    long year,month,day;
+    char *end;
+    year = strtol(v, &end, 10);
+    month = strtol(v, &end, 10);
+    day = strtol(v, &end, 10);
 
-    int year,month,day;
-
-    int num = sscanf(v,"%d-%d-%d",&year,&month,&day);
-    assert(num == 3);
-    bool leap;
-    if((year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)){
-        leap = true;
-    }else{
-        leap = false;
-    }
-    bool match = true;
     if(month == 2){
-        if(leap){
-            if(day > 29){
-                match = false;
-            }
-        }else{
-            if(day > 28){
-                match = false;
-            }
+        if(((year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)) && day > 29) {
+            value->type = INTS;
+            return;
         }
     }else{
-        if(day > days[month]){
-            match = false;
+        if(day > days[month-1]){
+            value->type = INTS;
+            return;
         }
     }
-    if(!match){
-        value->type = INTS;
-        return;
-    }
 
-    int j = 0;
+    int i = 0;
     char *record = (char*)value->data;
-    for(int i = 0; i < strlen(v); i++){
-        if(v[i] == '-'){
-            record[j++] = v[i];
-            if(i + 2 >= strlen(v) || !(v[i+2] <= '9' && v[i+2] >= '0')){
-                record[j++] = '0';
+    uint len = strlen(v);
+    for (int j = 0; j < len; ++j) {
+        if(v[j] == '-'){
+            record[i++] = v[j];
+            if ((j >= len - 2) || !(v[j+2] >= '0' && v[j+2] <= '9')){
+                record[i++] = '0';
             }
         }else{
-            record[j++] = v[i];
+                record[i++] = v[j];
         }
+        record[i] = '\0';
     }
-    record[j] = '\0';
-
-//    memcpy(value->data, record, strlen(record));
 }
 
 void value_destroy(Value *value) {
@@ -153,9 +139,6 @@ void attr_info_init(AttrInfo *attr_info, const char *name, AttrType type, size_t
         attr_info->length = MAX_DATE_LEN+1;
     }else if(type==CHARS){
         attr_info->length = length+1;
-//    }else if(type == TEXTS){
-//        attr_info->length = sizeof(int)*2;
-//
     }else{
         attr_info->length = length;
     }

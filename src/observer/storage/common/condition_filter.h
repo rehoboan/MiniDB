@@ -18,8 +18,16 @@ See the Mulan PSL v2 for more details. */
 #include "rc.h"
 #include "sql/parser/parse.h"
 
+
+
 struct Record;
 class Table;
+
+union ReturnValue {
+    float value_f;
+    int value_i;
+    char *value_s;
+};
 
 struct ConDesc {
   bool   is_attr;     // 是否属性，false 表示是值
@@ -27,6 +35,10 @@ struct ConDesc {
   int    attr_offset; // 如果是属性，表示在记录中的偏移量
   void * value;       // 如果是值类型，这里记录值的数据
 };
+
+void modify_return_value(int type, ReturnValue &ret, const char *data);
+int compare_data(int left_type, const char *left_data, int right_type, const char *right_data);
+const ReturnValue switch_data_type(int source_type, int target_type, const char *data);
 
 class ConditionFilter {
 public:
