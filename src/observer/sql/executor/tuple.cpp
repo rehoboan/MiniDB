@@ -56,6 +56,10 @@ void Tuple::add(const char *s, int len) {
   add(new StringValue(s, len));
 }
 
+void Tuple::add(time_t value){
+    add(new DateValue(value));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string TupleField::to_string() const {
@@ -234,6 +238,11 @@ void TupleRecordConverter::add_record(const char *record) {
         tuple.add(s, strlen(s));
       }
       break;
+      case DATES: {
+          const char *s = record + field_meta->offset();  // 现在当做Cstring来处理
+          std::shared_ptr<DateValue> p(new DateValue(s,strlen(s)));
+          tuple.add(p);
+        }
       default: {
         LOG_PANIC("Unsupported field type. type=%d", field_meta->type());
       }
