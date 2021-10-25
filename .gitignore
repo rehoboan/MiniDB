@@ -8,3 +8,8 @@ build/
 deps/googletest/
 deps/jsoncpp/
 deps/libevent/
+
+#cmake-build-debug
+cmake-build-debug
+#idea
+.idea
