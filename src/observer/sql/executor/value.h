@@ -56,9 +56,9 @@ public:
       bool is_null() const override;
 
 private:
-  int value_;
-  int type_;
-  bool is_null_ = false;
+      int value_;
+      int type_;
+      bool is_null_ = false;
 };
 
 class FloatValue : public TupleValue {
