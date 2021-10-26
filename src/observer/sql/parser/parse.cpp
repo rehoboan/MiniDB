@@ -60,22 +60,23 @@ void value_init_date(Value *value, const char *v) {
     value->type = DATES;
     value->data = malloc(MAX_DATE_LEN + 1);
 
-    long year,month,day;
-    char *end;
-    year = strtol(v, &end, 10);
-    month = strtol(v, &end, 10);
-    day = strtol(v, &end, 10);
+    int year,month,day;
+    sscanf(v,"%d-%d-%d",&year,&month,&day);
+    bool valid_date = true;
 
-    if(month == 2){
-        if(((year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)) && day > 29) {
-            value->type = INTS;
-            return;
+    if(day > days[month-1]){
+        valid_date = false;
+    }
+
+    if(month == 2 && day == 29) {
+        if ((year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)) {
+                valid_date = true;
         }
-    }else{
-        if(day > days[month-1]){
-            value->type = INTS;
-            return;
-        }
+    }
+
+    if (!valid_date){
+        value->type = UNDEFINED;
+        return;
     }
 
     int i = 0;

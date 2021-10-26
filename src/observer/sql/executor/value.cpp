@@ -101,10 +101,7 @@ time_t DateValue::str_to_time_t(const std::string *str) {
     const char *s = str->c_str();
     tm tm_{};
     int year, month, day;
-    char *end;
-    year = (int)strtol(s, &end, 10);
-    month = (int)strtol(s, &end, 10);
-    day = (int)strtol(s, &end, 10);
+    sscanf(s,"%d-%d-%d",&year,&month,&day);
 
     tm_.tm_year = year - 1900;
     tm_.tm_mon = month - 1;
