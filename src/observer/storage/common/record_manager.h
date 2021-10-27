@@ -63,7 +63,7 @@ public:
     if (rc != RC::SUCCESS) {
       return rc;
     }
-    rc = updater(record);
+    rc = updater(record);     
     disk_buffer_pool_->mark_dirty(&page_handle_);
     return rc;
   }

@@ -45,4 +45,42 @@ private:
   std::vector<DefaultConditionFilter *> condition_filters_;
 };
 
+class JoinExeNode : public ExecutionNode {
+public:
+  JoinExeNode();
+  virtual ~JoinExeNode();
+
+  RC init(Trx *trx, 
+          TupleSet *left_table, TupleSet *right_table,
+          TupleSchema tuple_schema,
+          std::vector<JoinConditionFilter*> condition_filters);
+
+  RC execute(TupleSet &tuple_set) override;
+  
+private:
+  Trx *trx_ = nullptr;
+  TupleSet *left_table_;
+  TupleSet *right_table_;
+  TupleSchema tuple_schema_;
+  std::vector<JoinConditionFilter*> condition_filters_;
+};
+
+class CartesianProductExeNode : public ExecutionNode {
+public:
+  CartesianProductExeNode();
+  virtual ~CartesianProductExeNode();
+
+  RC init(Trx *trx,
+          TupleSet *left_table, TupleSet *right_table,
+          const TupleSchema &tuple_schema);
+
+  RC execute(TupleSet &tuple_set) override;
+
+private:
+  Trx *trx_ = nullptr;
+  TupleSet *left_table_;
+  TupleSet *right_table_;
+  TupleSchema tuple_schema_;
+};
+
 #endif //__OBSERVER_SQL_EXECUTOR_EXECUTION_NODE_H_

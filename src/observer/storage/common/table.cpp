@@ -561,9 +561,109 @@ RC Table::create_index(Trx *trx, const char *index_name, const char *attribute_n
   return rc;
 }
 
-RC Table::update_record(Trx *trx, const char *attribute_name, const Value *value, int condition_num, const Condition conditions[], int *updated_count) {
-  return RC::GENERIC_ERROR;
+class RecordUpdater {
+public:
+  RecordUpdater(Table &table, Trx *trx, const char *attribute_name, const Value *value):
+  table_(table), trx_(trx), attribute_name_(attribute_name), value_(value){}
+
+  RC update_record(Record *record) {
+    RC rc = RC::SUCCESS;
+    rc = table_.update_record(trx_, record, attribute_name_, value_);
+    //如果更新成功，更新数量+1
+    if(rc == RC::SUCCESS) {
+      updated_count_++;
+    }
+    return rc;
+  }
+
+  int updated_count() const {
+    return updated_count_;
+  }
+
+private:
+  Table &table_;
+  Trx *trx_;
+  const Value *value_;
+  const char *attribute_name_;
+  int updated_count_ = 0;
+};
+
+static RC record_reader_update_adapter(Record *record, void *context) {
+  RecordUpdater &record_updater = *(RecordUpdater *)context;
+  return record_updater.update_record(record);
 }
+
+RC Table::update_record(Trx *trx, const char *attribute_name, const Value *value, int condition_num, const Condition conditions[], int *updated_count) {
+  CompositeConditionFilter condition_filter;
+  RC rc = condition_filter.init(*this, conditions, condition_num);
+  if(rc != RC::SUCCESS) {
+    return rc;
+  }
+
+  RecordUpdater updater(*this, trx, attribute_name, value);
+  rc = scan_record(trx, &condition_filter, -1, &updater, record_reader_update_adapter);
+  if(updated_count != nullptr) 
+    *updated_count = updater.updated_count();
+  
+  return rc;
+}
+
+RC Table::update_record(Trx *trx, Record *record, const char *attribute_name, const Value *value){
+  RC rc = RC::SUCCESS;
+
+  if(trx != nullptr){
+    rc = delete_entry_of_indexes(record->data, record->rid, false);
+    if(rc != RC::SUCCESS) {
+      LOG_ERROR("Failed to delete indexes of record. rid=%d:%d. rc=%d:%s", 
+      record->rid.page_num, record->rid.slot_num, rc, strrc(rc));
+      return rc;
+    }
+    rc = trx->update_record(this, record, attribute_name, value);
+    if(rc != RC::SUCCESS){
+      return rc;
+    }
+
+    rc = insert_entry_of_indexes(record->data, record->rid);
+    if(rc != RC::SUCCESS) {
+      LOG_ERROR("Failed to insert indexes of record. rid=%d:%d. rc=%d:%s", 
+      record->rid.page_num, record->rid.slot_num, rc, strrc(rc));
+      return rc;
+    }    
+  } else {
+    //delete_record
+    //update_record
+
+  }
+  return RC::SUCCESS;
+} 
+//update in-place
+RC Table::update_record(Record *record, const char *attribute_name, const Value *value) {
+  RC rc = RC::SUCCESS;
+  const FieldMeta *field_meta = table_meta_.field(attribute_name);
+  if(field_meta == nullptr)
+    return RC::GENERIC_ERROR;
+
+  if(value->type != field_meta->type())
+    return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+
+  //更新update
+  char *new_record_data=record->data+field_meta->offset();
+  memcpy(new_record_data,value->data,field_meta->len());
+  
+  RecordFileHandler rfh;
+  //init RecordFileHandler
+  rc = rfh.init(*data_buffer_pool_, file_id_);
+  if(rc != RC::SUCCESS) {
+    LOG_ERROR("Fail to update record when init record file handler. record:%d,%d, rc",
+                record->rid.page_num, record->rid.slot_num, rc);
+    return rc;
+  }
+  //update in-place
+  rc = rfh.update_record(record);
+  return rc;
+}
+
+
 
 class RecordDeleter {
 public:

@@ -16,6 +16,7 @@ See the Mulan PSL v2 for more details. */
 #define __OBSERVER_STORAGE_COMMON_CONDITION_FILTER_H_
 
 #include "rc.h"
+#include "sql/executor/tuple.h"
 #include "sql/parser/parse.h"
 
 struct Record;
@@ -38,6 +39,10 @@ public:
    * @return true means match condition, false means failed to match.
    */
   virtual bool filter(const Record &rec) const = 0;
+  virtual bool filter(const Tuple &tuple, const TupleSchema &tuple_schema) const = 0;
+  virtual bool filter(const Tuple &left_tuple, const TupleSchema &left_schema, 
+                      const Tuple &right_tuple, const TupleSchema &right_schema) const = 0;
+
 };
 
 class DefaultConditionFilter : public ConditionFilter {
@@ -49,6 +54,9 @@ public:
   RC init(Table &table, const Condition &condition);
 
   virtual bool filter(const Record &rec) const;
+  virtual bool filter(const Tuple &tuple, const TupleSchema &tuple_schema) const {return false;}
+  virtual bool filter(const Tuple &left_tuple, const TupleSchema &left_schema, 
+                      const Tuple &right_tuple, const TupleSchema &right_schema) const {return false;}  
 
 public:
   const ConDesc &left() const {
@@ -70,6 +78,25 @@ private:
   CompOp   comp_op_ = NO_OP;
 };
 
+class JoinConditionFilter : public ConditionFilter {
+public:
+  JoinConditionFilter();
+  virtual ~JoinConditionFilter();
+
+  RC init(const RelAttr &left, const RelAttr &right, CompOp comp_op);
+
+  virtual bool filter(const Tuple &tuple, const TupleSchema &tuple_schema) const;
+  virtual bool filter(const Tuple &left_tuple, const TupleSchema &left_schema, 
+                      const Tuple &right_tuple, const TupleSchema &right_schema) const;
+  virtual bool filter(const Record &rec) const {return false;} //nothing to do here
+
+
+private:
+  RelAttr left_;
+  RelAttr right_;
+  CompOp comp_op_ = NO_OP;
+};
+
 class CompositeConditionFilter : public ConditionFilter {
 public:
   CompositeConditionFilter() = default;
@@ -77,7 +104,13 @@ public:
 
   RC init(const ConditionFilter *filters[], int filter_num);
   RC init(Table &table, const Condition *conditions, int condition_num);
+
   virtual bool filter(const Record &rec) const;
+
+  virtual bool filter(const Tuple &tuple, const TupleSchema &tuple_schema) const;
+
+  virtual bool filter(const Tuple &left_tuple, const TupleSchema &left_schema, 
+                      const Tuple &right_tuple, const TupleSchema &right_schema) const;
 
 public:
   int filter_num() const {

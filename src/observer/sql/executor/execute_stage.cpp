@@ -35,7 +35,73 @@ See the Mulan PSL v2 for more details. */
 
 using namespace common;
 
+struct hash_pair { 
+    template <class T1, class T2> 
+    size_t operator()(const std::pair<T1, T2>& p) const{ 
+      auto hash1 = std::hash<T1>{}(p.first); 
+      auto hash2 = std::hash<T2>{}(p.second); 
+      return hash1 ^ hash2; 
+    } 
+}; 
+
+// struct hash_string { 
+//     size_t operator()(const char *str) const{ 
+//       int num = 10;
+//       int hash = strlen(str);
+//       while(*(++str)){
+//         hash = num * 10 + (*str);
+//       }
+//       return hash & (0x7FFFFFFF); 
+//     } 
+// }; 
+
+// struct equal_string {
+//        bool operator()(const char* a,const char* b) const {
+//            return strcmp(a,b)==0;
+//      }
+// };
+
+using TablePair = std::pair<const char *, const char *>;
+//<<tl,tr>, [conds1, conds2...]>
+using JoinConds = std::unordered_map<TablePair, std::vector<Condition>, hash_pair>;
+//<tablename, tupleset>     
+//using MapName2Value = std::unordered_map<const char *, TupleSet *, hash_string, equal_string>;
+using MapName2Value = std::unordered_map<const char *, TupleSet *>;
+
+
+//<tupleset, [t1,t2,........]>  连接后的临时表
+using MapValue2Name = std::unordered_map<TupleSet *, std::vector<const char *>>;
+
+//create and init executor node
 RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, const char *table_name, SelectExeNode &select_node);
+
+RC create_join_executor(Trx *trx, 
+                        TupleSet *left_table, TupleSet *right_table,
+                        std::vector<Condition> &conditions,
+                        JoinExeNode &join_node,
+                        SessionEvent *session_event);
+
+RC create_cartesian_product_executor(Trx *trx, 
+                                      TupleSet *left_table, TupleSet *right_table,
+                                      CartesianProductExeNode &cartesian_product_node,
+                                      SessionEvent *session_event);
+
+//init join conditions
+void init_join_conditions_between_tables(const Selects &selects, JoinConds &map);
+//init map between tablename and filtered tuple sets
+void init_kv_between_name_and_value(std::vector<TupleSet> &tuple_sets, 
+                    MapName2Value &name2value, MapValue2Name &value2name);
+
+//join two tables depends on each join condition
+RC join_tables(Trx *trx, 
+              const JoinConds &join_conditions,
+              MapName2Value &name2value, MapValue2Name &value2name,
+              SessionEvent *session_event, Session *session);
+RC cartesian_product(Trx *trx,
+                    const MapValue2Name &value2name,
+                    TupleSet &res_table,
+                    SessionEvent *session_event, Session *session);
+
 
 //! Constructor
 ExecuteStage::ExecuteStage(const char *tag) : Stage(tag) {}
@@ -262,9 +328,33 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
   std::stringstream ss;
   if (tuple_sets.size() > 1) {
     // 本次查询了多张表，需要做join操作
+    TupleSet res_table;
+    JoinConds join_conditions;
+    init_join_conditions_between_tables(selects, join_conditions);
+
+
+    MapName2Value name2value;
+    MapValue2Name value2name;
+    init_kv_between_name_and_value(tuple_sets, name2value, value2name);
+
+
+    rc = join_tables(trx, join_conditions, name2value, value2name, session_event, session);
+    if(rc == RC::SUCCESS) {
+      if(value2name.size() > 1) {
+        rc = cartesian_product(trx, value2name, res_table, session_event, session);
+      } else if(value2name.size() == 1) {
+        res_table = std::move(*value2name.begin()->first);
+      } else {
+        rc = RC::CORRUPT;
+      }
+    }
   } else {
     // 当前只查询一张表，直接返回结果即可
     tuple_sets.front().print(ss);
+  }
+
+  if(rc != RC::SUCCESS) {
+    LOG_ERROR("Fail to execute join operation. ret=%d:%s", rc, strrc(rc));
   }
 
   for (SelectExeNode *& tmp_node: select_nodes) {
@@ -273,6 +363,86 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
   session_event->set_response(ss.str());
   end_trx_if_need(session, trx, true);
   return rc;
+}
+//join operation between two relation
+RC join_tables(Trx *trx, 
+              const JoinConds &join_conditions,
+              MapName2Value &name2value, MapValue2Name &value2name,
+              SessionEvent *session_event, Session *session) {
+  RC rc = RC::SUCCESS;
+  for(auto iter = join_conditions.begin(); iter != join_conditions.end(); iter++) {
+    JoinExeNode join_node;
+    const char *left_table_name = iter->first.first;
+    const char *right_table_name = iter->first.second;
+    std::vector<Condition> conditions = iter->second; 
+    rc = create_join_executor(trx,
+                      name2value[left_table_name],
+                      name2value[right_table_name],
+                      conditions,
+                      join_node,
+                      session_event
+                      );
+    if(rc != RC::SUCCESS) {
+      end_trx_if_need(session, trx, false);
+      break;
+    }
+    TupleSet *join_table = new TupleSet();
+    rc = join_node.execute(*join_table); //生成临时表
+    if(rc != RC::SUCCESS) {
+      end_trx_if_need(session, trx, false);
+    }
+
+    //更新到value2name中和name2value中
+    TupleSet *old_left_table = name2value[left_table_name];
+    std::vector<const char *>table_names = value2name[old_left_table];
+    value2name.erase(old_left_table);
+
+    TupleSet *old_right_table = name2value[right_table_name];
+    if(old_right_table != old_left_table) {
+      for(const char *name : value2name[old_right_table]) {
+        table_names.emplace_back(std::move(name));
+      }
+      value2name.erase(old_right_table);
+    }
+    //更新value2name
+    value2name[join_table] = table_names;
+    //更新 name2value
+    for (const char *name : table_names) {
+      name2value[name] = join_table;
+    }
+
+
+  }
+  return RC::SUCCESS;
+}
+
+
+RC cartesian_product(Trx *trx, const MapValue2Name &value2name, TupleSet &res_table, SessionEvent *session_event, Session *session) {
+  RC rc = RC::SUCCESS;
+  auto i = value2name.begin();
+  
+  TupleSet *left_table = i->first;
+  i++;
+  for(;i!=value2name.end(); i++){
+    TupleSet join_tuple;
+    TupleSet *right_table = i->first;
+    CartesianProductExeNode cartesian_node;
+    create_cartesian_product_executor(trx, left_table, right_table, cartesian_node, session_event);
+    rc = cartesian_node.execute(join_tuple);
+    if(rc != RC::SUCCESS) {
+      end_trx_if_need(session, trx, false);
+      break;      
+    }
+    if(i != ++value2name.begin())
+      delete left_table;
+    
+    left_table = new TupleSet(std::move(join_tuple));
+  }
+  if(rc == RC::SUCCESS)
+    res_table = std::move(*left_table);
+  
+  return rc;
+
 }
 
 bool match_table(const Selects &selects, const char *table_name_in_condition, const char *table_name_to_match) {
@@ -346,3 +516,117 @@ RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, c
 
   return select_node.init(trx, table, std::move(schema), std::move(condition_filters));
 }
+
+RC create_join_executor(Trx *trx,
+                        TupleSet *left_table, TupleSet *right_table,
+                        std::vector<Condition> &conditions,
+                        JoinExeNode &join_node,
+                        SessionEvent *session_event) {
+  //update join schema
+  TupleSchema schema;
+  schema.append(left_table->get_schema());
+  if(&left_table != &right_table)
+    schema.append(right_table->get_schema());
+  
+  //create join condition filter vector
+  std::vector<JoinConditionFilter *> condition_filters;
+  for(int i = 0; i < conditions.size(); i++) {
+    JoinConditionFilter *condition_filter = new JoinConditionFilter();
+    RelAttr left_relattr = conditions[i].left_attr;
+    RelAttr right_relattr = conditions[i].right_attr;
+    const CompOp& op = conditions[i].comp;
+    RC rc = condition_filter->init(left_relattr, right_relattr, op);
+    if(rc != RC::SUCCESS) {
+      return rc;
+    }
+    condition_filters.push_back(condition_filter);
+  }
+  
+  return join_node.init(trx, 
+                  left_table, right_table,
+                  std::move(schema), 
+                  std::move(condition_filters));
+}
+
+
+RC create_cartesian_product_executor(Trx *trx, 
+                                      TupleSet *left_table, TupleSet *right_table,
+                                      CartesianProductExeNode &cartesian_product_node,
+                                      SessionEvent *session_event) {
+  TupleSchema schema;
+  schema.append(left_table->get_schema());
+  if(left_table != right_table)
+    schema.append(right_table->get_schema());
+  return cartesian_product_node.init(trx, left_table, right_table, schema);
+
+}
+
+
+void init_join_conditions_between_tables(const Selects &selects, JoinConds &map) {
+  for(int i=0; i<selects.condition_num; i++) {
+    const Condition &condition = selects.conditions[i];
+    const char *left_table_name = condition.left_attr.relation_name;
+    const char *right_table_name = condition.right_attr.relation_name;
+    //no table name or non-attr  won't be added to the join conditions
+    if(left_table_name == nullptr || right_table_name == nullptr)
+      continue;
+    if(condition.left_is_attr == 0 || condition.right_is_attr ==0)
+      continue;
+    int cmp = strcmp(left_table_name, right_table_name);
+    if(cmp != 0) {
+      Condition new_condition;
+      new_condition.comp = condition.comp;
+      if(cmp > 0) {
+        //exchange table
+        const char *tmp = left_table_name;
+        left_table_name = right_table_name;
+        right_table_name = tmp;
+
+        new_condition.left_is_attr = condition.right_is_attr;
+        new_condition.left_value = condition.right_value;
+        new_condition.left_attr = condition.right_attr;
+        new_condition.right_is_attr = condition.left_is_attr;
+        new_condition.right_value = condition.left_value;
+        new_condition.right_attr = condition.left_attr;
+      }
+      else {
+        new_condition.left_is_attr = condition.left_is_attr;
+        new_condition.left_value = condition.left_value;
+        new_condition.left_attr = condition.left_attr;
+        new_condition.right_is_attr = condition.right_is_attr;
+        new_condition.right_value = condition.right_value;
+        new_condition.right_attr = condition.right_attr;        
+      }
+
+      TablePair pair(left_table_name, right_table_name);
+      if(map.count(pair)==0) {
+        std::vector<Condition> v;
+        map[pair] = std::move(v);
+      }
+      map[pair].emplace_back(new_condition);
+    }
+    
+  }
+}
+void init_kv_between_name_and_value(std::vector<TupleSet> &tuple_sets, 
+                    MapName2Value &name2value, MapValue2Name &value2name) {
+  
+  for(int i=0; i<tuple_sets.size(); i++) {
+    TupleSet *tuple_set = &tuple_sets[i];
+    TupleSchema schema = tuple_set[i].get_schema();
+    const char * table_name = schema.field(0).table_name();
+    if(name2value.count(table_name) == 0) {
+      name2value[table_name] = tuple_set;
+    }
+    if(value2name.count(tuple_set) == 0) {
+      std::vector<const char *> n;
+      n.push_back(table_name);
+      value2name[tuple_set] = n;
+    }
+    else {
+      value2name[tuple_set].push_back(table_name);
+    }
+
+  }
+}
+
