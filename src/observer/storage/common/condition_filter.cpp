@@ -147,6 +147,9 @@ bool DefaultConditionFilter::filter(const Record &rec) const
       // 按照C字符串风格来定
       cmp_result = strcmp(left_value, right_value);
     } break;
+    case DATES: {
+        cmp_result = strcmp(left_value, right_value);
+    } break;
     case INTS: {
       // 没有考虑大小端问题
       // 对int和float，要考虑字节对齐问题,有些平台下直接转换可能会跪
@@ -253,6 +256,9 @@ void modify_return_value(int type, ReturnValue &ret, const char *data){
             ret.value_f = *(float *)data;
             break;
         case CHARS:
+            strcpy(ret.value_s, data);
+            break;
+        case DATES:
             strcpy(ret.value_s, data);
             break;
         default:
