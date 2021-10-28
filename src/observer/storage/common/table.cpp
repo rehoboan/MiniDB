@@ -635,6 +635,7 @@ RC Table::update_record(Trx *trx, Record *record, const char *attribute_name, co
 
     int value_num = 0;
     Value values[MAX_NUM];
+    bool succeed = false;
 
     const int normal_field_start_index = table_meta_.sys_field_num();
 
@@ -645,6 +646,7 @@ RC Table::update_record(Trx *trx, Record *record, const char *attribute_name, co
         int j = i - normal_field_start_index;
         int len = field->len();
         if (strcmp(attribute_name, field->name()) == 0){
+            succeed = true;
             values[j].data = new char[len];
             values[j].type = value->type;
             memcpy(values[j].data, value->data, len);
@@ -656,6 +658,10 @@ RC Table::update_record(Trx *trx, Record *record, const char *attribute_name, co
         }
         value_num++;
     }
+    if(!succeed){
+        return RC::GENERIC_ERROR;
+    }
+
     rc = insert_record(trx, value_num, values);
     return rc;
 }
