@@ -12,21 +12,13 @@ See the Mulan PSL v2 for more details. */
 // Created by Wangyunlai on 2021/5/7.
 //
 
-#include <stddef.h>
+
 #include "condition_filter.h"
 #include "record_manager.h"
 #include "common/log/log.h"
 #include "storage/common/table.h"
 
 using namespace common;
-int compare_data(int left_type, const char *left_data,
-                 int right_type, const char *right_data);
-
-union ReturnValue {
-    float value_f;
-    int value_i;
-    char *value_s;
-};
 
 ConditionFilter::~ConditionFilter()
 {}
@@ -43,12 +35,13 @@ DefaultConditionFilter::DefaultConditionFilter()
   right_.attr_offset = 0;
   right_.value = nullptr;
 }
+
 DefaultConditionFilter::~DefaultConditionFilter()
 {}
 
 RC DefaultConditionFilter::init(const ConDesc &left, const ConDesc &right, AttrType attr_type, CompOp comp_op)
 {
-  if (attr_type < CHARS || attr_type > FLOATS) {
+  if (attr_type < CHARS || attr_type > DATES) {
     LOG_ERROR("Invalid condition with unsupported attribute type: %d", attr_type);
     return RC::INVALID_ARGUMENT;
   }
@@ -153,6 +146,9 @@ bool DefaultConditionFilter::filter(const Record &rec) const
     case CHARS: {  // 字符串都是定长的，直接比较
       // 按照C字符串风格来定
       cmp_result = strcmp(left_value, right_value);
+    } break;
+    case DATES: {
+        cmp_result = strcmp(left_value, right_value);
     } break;
     case INTS: {
       // 没有考虑大小端问题
@@ -262,6 +258,9 @@ void modify_return_value(int type, ReturnValue &ret, const char *data){
         case CHARS:
             strcpy(ret.value_s, data);
             break;
+        case DATES:
+            strcpy(ret.value_s, data);
+            break;
         default:
             break;
     }
@@ -297,7 +296,6 @@ const ReturnValue switch_data_type(int source_type, int target_type, const char 
                     break;
                 case FLOATS:{
                     res.value_f = (float)*(int *)data;
-                    // printf("in switch: res:%f\n",*(float *)res);
                 }
                 default:
 
@@ -331,14 +329,12 @@ int compare_data(int left_type, const char *left_data, int right_type, const cha
         res = strcmp(left_data, right_data);
     }
     else if (left_type == CHARS || right_type == CHARS){
-        LOG_WARN("Miniob doesn't support comparing data of char type and non-char type");
         return -1;
     }
     if (left_type == DATES && right_type == DATES){
         res = strcmp(left_data, right_data);
     }
     else if (left_type == DATES || right_type == DATES){
-        LOG_WARN("Miniob doesn't support comparing data of date type and non-date type");
         return -1;
     }
     if(left_type == FLOATS || right_type == FLOATS){
@@ -362,7 +358,7 @@ int compare_data(int left_type, const char *left_data, int right_type, const cha
         res = left - right;
     }
     else{
-        // TODO 等待新增类型时再完成
+        // TODO
     }
     return res;
 }

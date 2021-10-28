@@ -414,6 +414,7 @@ RC Table::scan_record(Trx *trx, ConditionFilter *filter, int limit, void *contex
   Record record;
   rc = scanner.get_first_record(&record);
   for ( ; RC::SUCCESS == rc && record_count < limit; rc = scanner.get_next_record(&record)) {
+
     if (trx == nullptr || trx->is_visible(this, &record)) {
       rc = record_reader(&record, context);
       if (rc != RC::SUCCESS) {
@@ -421,6 +422,7 @@ RC Table::scan_record(Trx *trx, ConditionFilter *filter, int limit, void *contex
       }
       record_count++;
     }
+
   }
 
   if (RC::RECORD_EOF == rc) {
@@ -633,6 +635,7 @@ RC Table::update_record(Trx *trx, Record *record, const char *attribute_name, co
 
     int value_num = 0;
     Value values[MAX_NUM];
+    bool succeed = false;
 
     const int normal_field_start_index = table_meta_.sys_field_num();
 
@@ -643,6 +646,7 @@ RC Table::update_record(Trx *trx, Record *record, const char *attribute_name, co
         int j = i - normal_field_start_index;
         int len = field->len();
         if (strcmp(attribute_name, field->name()) == 0){
+            succeed = true;
             values[j].data = new char[len];
             values[j].type = value->type;
             memcpy(values[j].data, value->data, len);
@@ -654,6 +658,10 @@ RC Table::update_record(Trx *trx, Record *record, const char *attribute_name, co
         }
         value_num++;
     }
+    if(!succeed){
+        return RC::GENERIC_ERROR;
+    }
+
     rc = insert_record(trx, value_num, values);
     return rc;
 }

@@ -86,22 +86,22 @@ RC Trx::delete_record(Table *table, Record *record) {
 
 RC Trx::update_record(Table *table, Record *record, const char *attribute_name, const Value *value){
     RC rc = RC::SUCCESS;
-    start_if_not_started();
-
-    Operation *old_oper = find_operation(table, record->rid);
-    if (old_oper != nullptr) {
-        if (old_oper->type() == Operation::Type::UPDATE) {
-            return RC::SUCCESS;
-        } else if(old_oper->type() == Operation::Type::INSERT){
-            delete_operation(table, record->rid);
-            insert_operation(table, Operation::Type::UPDATE, record->rid);
-            return RC::SUCCESS;
-        }else{
-            return RC::GENERIC_ERROR;
-        }
-    }
-    set_record_trx_id(table, *record, trx_id_, false);
-    insert_operation(table, Operation::Type::UPDATE, record->rid);
+//    start_if_not_started();
+//
+//    Operation *old_oper = find_operation(table, record->rid);
+//    if (old_oper != nullptr) {
+//        if (old_oper->type() == Operation::Type::UPDATE) {
+//            return RC::SUCCESS;
+//        } else if(old_oper->type() == Operation::Type::INSERT){
+//            delete_operation(table, record->rid);
+//            insert_operation(table, Operation::Type::UPDATE, record->rid);
+//            return RC::SUCCESS;
+//        }else{
+//            return RC::GENERIC_ERROR;
+//        }
+//    }
+//    set_record_trx_id(table, *record, trx_id_, false);
+//    insert_operation(table, Operation::Type::UPDATE, record->rid);
     return rc;
 }
 
@@ -182,6 +182,17 @@ RC Trx::commit() {
           }
         }
         break;
+
+        case Operation::Type::UPDATE: {
+            rc = table->commit_update(this, rid);
+            if (rc != RC::SUCCESS) {
+                // TODO handle rc
+                LOG_ERROR("Failed to commit update operation. rid=%d.%d, rc=%d:%s",
+                            rid.page_num, rid.slot_num, rc, strrc(rc));
+              }
+          }
+          break;
+
         default: {
           LOG_PANIC("Unknown operation. type=%d", (int)operation.type());
         }
@@ -267,7 +278,8 @@ bool Trx::is_visible(Table *table, const Record *record) {
 }
 
 void Trx::init_trx_info(Table *table, Record &record) {
-  set_record_trx_id(table, record, trx_id_, false);
+    start_if_not_started();
+    set_record_trx_id(table, record, trx_id_, false);
 }
 
 void Trx::start_if_not_started() {
