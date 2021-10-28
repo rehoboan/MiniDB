@@ -255,12 +255,23 @@ void DefaultStorageStage::handle_event(StageEvent *event) {
       break;
   }
 
-  if (rc == RC::SUCCESS && !session->is_trx_multi_operation_mode()) {
-    rc = current_trx->commit();
-    if (rc != RC::SUCCESS) {
-      LOG_ERROR("Failed to commit trx. rc=%d:%s", rc, strrc(rc));
+//  if (rc == RC::SUCCESS && !session->is_trx_multi_operation_mode()) {
+//    rc = current_trx->commit();
+//    if (rc != RC::SUCCESS) {
+//      LOG_ERROR("Failed to commit trx. rc=%d:%s", rc, strrc(rc));
+//    }
+//  }
+    if (rc == RC::SUCCESS && !session->is_trx_multi_operation_mode()) {
+        rc = current_trx->commit();
+        if (rc != RC::SUCCESS) {
+            LOG_ERROR("Failed to commit trx. rc=%d:%s", rc, strrc(rc));
+        }
+    }else if(rc != SUCCESS){
+        rc = current_trx->rollback();
+        if(rc != SUCCESS){
+            LOG_ERROR("Failed to commit trx. rc=%d:%s", rc, strrc(rc));
+        }
     }
-  }
 
   session_event->set_response(response);
   event->done_immediate();
