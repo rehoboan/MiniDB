@@ -187,7 +187,10 @@ int CompareKey(const char *pdata, const char *pkey,AttrType attr_type,int attr_l
     }
       break;
     default:{
-      LOG_PANIC("Unknown attr type: %d", attr_type);
+        s1 = pdata;
+        s2 = pkey;
+        return strncmp(s1, s2, attr_length);
+//      LOG_PANIC("Unknown attr type: %d", attr_type);
     }
   }
   return -2;//This means error happens
@@ -1823,7 +1826,8 @@ bool BplusTreeScanner::satisfy_condition(const char *pkey) {
       s2=value_;
       break;
     default:
-      LOG_PANIC("Unknown attr type: %d", attr_type);
+        s1 = pkey;
+        s2 = value_;
   }
 
   bool flag=false;
@@ -1842,7 +1846,8 @@ bool BplusTreeScanner::satisfy_condition(const char *pkey) {
           flag=(strncmp(s1,s2,attr_length)==0);
           break;
         default:
-          LOG_PANIC("Unknown attr type: %d", attr_type);
+//          LOG_PANIC("Unknown attr type: %d", attr_type);
+            flag=(strncmp(s1,s2,attr_length)==0);
       }
       break;
     case LESS_THAN:
@@ -1857,7 +1862,8 @@ bool BplusTreeScanner::satisfy_condition(const char *pkey) {
           flag=(strncmp(s1,s2,attr_length)<0);
           break;
         default:
-          LOG_PANIC("Unknown attr type: %d", attr_type);
+//          LOG_PANIC("Unknown attr type: %d", attr_type);
+              flag=(strncmp(s1,s2,attr_length)<0);
       }
       break;
     case GREAT_THAN:
@@ -1872,7 +1878,8 @@ bool BplusTreeScanner::satisfy_condition(const char *pkey) {
           flag=(strncmp(s1,s2,attr_length)>0);
           break;
         default:
-          LOG_PANIC("Unknown attr type: %d", attr_type);
+//          LOG_PANIC("Unknown attr type: %d", attr_type);
+              flag=(strncmp(s1,s2,attr_length)>0);
       }
       break;
     case LESS_EQUAL:
@@ -1887,7 +1894,9 @@ bool BplusTreeScanner::satisfy_condition(const char *pkey) {
           flag=(strncmp(s1,s2,attr_length)<=0);
           break;
         default:
-          LOG_PANIC("Unknown attr type: %d", attr_type);
+//          LOG_PANIC("Unknown attr type: %d", attr_type);
+              flag=(strncmp(s1,s2,attr_length)<=0);
+
       }
       break;
     case GREAT_EQUAL:
@@ -1902,7 +1911,8 @@ bool BplusTreeScanner::satisfy_condition(const char *pkey) {
           flag=(strncmp(s1,s2,attr_length)>=0);
           break;
         default:
-          LOG_PANIC("Unknown attr type: %d", attr_type);
+//          LOG_PANIC("Unknown attr type: %d", attr_type);
+              flag=(strncmp(s1,s2,attr_length)>=0);
       }
       break;
     case NOT_EQUAL:
@@ -1917,7 +1927,8 @@ bool BplusTreeScanner::satisfy_condition(const char *pkey) {
           flag=(strncmp(s1,s2,attr_length)!=0);
           break;
         default:
-          LOG_PANIC("Unknown attr type: %d", attr_type);
+//          LOG_PANIC("Unknown attr type: %d", attr_type);
+              flag=(strncmp(s1,s2,attr_length)!=0);
       }
       break;
     default:
