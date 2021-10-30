@@ -15,8 +15,12 @@ typedef struct ParserContext {
   size_t select_length;
   size_t condition_length;
   size_t from_length;
+
   size_t value_length;
   Value values[MAX_NUM];
+  size_t row_num;
+  size_t row_end[MAX_NUM];
+
   Condition conditions[MAX_NUM];
   CompOp comp;
 	char id[MAX_NUM];
@@ -64,6 +68,10 @@ ParserContext *get_context(yyscan_t scanner)
 %token  SEMICOLON
         CREATE
         DROP
+	IS
+	NOT
+	NULLABLE
+	NULL_T
         TABLE
         TABLES
         INDEX
@@ -84,6 +92,7 @@ ParserContext *get_context(yyscan_t scanner)
         STRING_T
         FLOAT_T
         DATE_T //DATE
+        TEXT_T //TEXT
         HELP
         EXIT
         DOT //QUOTE
@@ -282,7 +291,7 @@ ID_get:
 
 	
 insert:				/*insert   语句的语法解析树*/
-    INSERT INTO ID VALUES LBRACE value value_list RBRACE SEMICOLON 
+    INSERT INTO ID VALUES row row_list SEMICOLON
 		{
 			// CONTEXT->values[CONTEXT->value_length++] = *$6;
 
@@ -292,11 +301,28 @@ insert:				/*insert   语句的语法解析树*/
 			// for(i = 0; i < CONTEXT->value_length; i++){
 			// 	CONTEXT->ssql->sstr.insertion.values[i] = CONTEXT->values[i];
       // }
-			inserts_init(&CONTEXT->ssql->sstr.insertion, $3, CONTEXT->values, CONTEXT->value_length);
+			inserts_init(&CONTEXT->ssql->sstr.insertion, $3, CONTEXT->values, CONTEXT->value_length, CONTEXT->row_end, CONTEXT->row_num);
 
       //临时变量清零
       CONTEXT->value_length=0;
+      CONTEXT->row_num=0;
     }
+
+row_list:
+	//empty
+
+	| COMMA	row	row_list	{
+		//next row
+	}
+	;
+
+row:
+	LBRACE value value_list RBRACE	{
+		//new row
+		CONTEXT->row_end[CONTEXT->row_num++]=CONTEXT->value_length;
+
+	}
+	;
 
 value_list:
     /* empty */
@@ -305,7 +331,10 @@ value_list:
 	  }
     ;
 value:
-    NUMBER{	
+    NULL_T{
+		value_init_null(&CONTEXT->values[CONTEXT->value_length++]);
+	}
+    |NUMBER{
   		value_init_integer(&CONTEXT->values[CONTEXT->value_length++], $1);
 		}
     |FLOAT{

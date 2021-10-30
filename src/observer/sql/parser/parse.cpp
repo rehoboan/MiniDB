@@ -38,6 +38,11 @@ void relation_attr_destroy(RelAttr *relation_attr) {
   relation_attr->attribute_name = nullptr;
 }
 
+void value_init_null(Value *value){
+    value->type = static_cast<AttrType>(UNDEFINED | NULL_VALUE);
+    value->data = malloc(sizeof(int));
+}
+
 void value_init_integer(Value *value, int v) {
   value->type = INTS;
   value->data = malloc(sizeof(v));
@@ -183,14 +188,18 @@ void selects_destroy(Selects *selects) {
   selects->condition_num = 0;
 }
 
-void inserts_init(Inserts *inserts, const char *relation_name, Value values[], size_t value_num) {
-  assert(value_num <= sizeof(inserts->values)/sizeof(inserts->values[0]));
+void inserts_init(Inserts *inserts, const char *relation_name, Value values[], size_t value_num, size_t row_end[], size_t row_num) {
+//  assert(value_num <= sizeof(inserts->values)/sizeof(inserts->values[0]));
 
   inserts->relation_name = strdup(relation_name);
   for (size_t i = 0; i < value_num; i++) {
     inserts->values[i] = values[i];
   }
   inserts->value_num = value_num;
+  for (size_t i = 0; i < row_num; ++i) {
+      inserts->row_end[i] = row_end[i];
+    }
+      inserts->row_num = row_num;
 }
 void inserts_destroy(Inserts *inserts) {
   free(inserts->relation_name);
