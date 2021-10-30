@@ -78,7 +78,7 @@ RC Db::drop_table(const char *table_name) {
   auto kv = opened_tables_.find(table_name);
   if(kv == opened_tables_.end()) {
     return RC::SCHEMA_TABLE_NOT_EXIST;
-  } 
+  }
   Table *table = kv->second;
   //得到table的meta文件路径
   std::string table_file_path = table_meta_file(path_.c_str(), table_name);

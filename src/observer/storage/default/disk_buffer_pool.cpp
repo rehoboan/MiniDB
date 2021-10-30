@@ -35,17 +35,25 @@ DiskBufferPool *theGlobalDiskBufferPool()
 
 RC DiskBufferPool::create_file(const char *file_name)
 {
+    /* O_RDWR 以可读可写的方式打开，
+     * O_CREAT 如果文件不存在则创建一个新的文件
+     * O_EXCL 如果文件已存在则返回一个错误
+     *
+     * S_ 设置读写性
+     * S_IREAD 允许读
+     * S_IWRITE 允许写
+     */
   int fd = open(file_name, O_RDWR | O_CREAT | O_EXCL, S_IREAD | S_IWRITE);
   if (fd < 0) {
     LOG_ERROR("Failed to create %s, due to %s.", file_name, strerror(errno));
     return RC::SCHEMA_DB_EXIST;
   }
-
   close(fd);
 
   /**
    * Here don't care about the failure
    */
+   // 为什么要先创建，关闭之后再重新open呢
   fd = open(file_name, O_RDWR);
   if (fd < 0) {
     LOG_ERROR("Failed to open for readwrite %s, due to %s.", file_name, strerror(errno));
@@ -53,27 +61,30 @@ RC DiskBufferPool::create_file(const char *file_name)
   }
 
   Page page;
-  memset(&page, 0, sizeof(Page));
+  memset(&page, 0, sizeof(Page)); // void *memset(void *s, int ch, size_t n);
 
   BPFileSubHeader *fileSubHeader;
-  fileSubHeader = (BPFileSubHeader *)page.data;
+  fileSubHeader = (BPFileSubHeader *)page.data; //进行强制类型转换：
+  // 为什么一定要进行强制类型转换来实现？这样固定了这个新创建的文件的第一个page，通过这样的方法使得在第一个page的一开始记录这个文件的一些信息
   fileSubHeader->allocated_pages = 1;
   fileSubHeader->page_count = 1;
 
-  char *bitmap = page.data + (int)BP_FILE_SUB_HDR_SIZE;
-  bitmap[0] |= 0x01;
+  char *bitmap = page.data + (int)BP_FILE_SUB_HDR_SIZE; //将之前记录了fileSubHeader信息的部分加上
+  bitmap[0] |= 0x01; // bitmap[0]用于标识这个file的第一个page已经创建
+  //?为什么这里要用或，如果是已经创建过一个同名文件不应该之前在一开始创建文件时就发生错误（因为open函数标志位O_EXCL）直接返回吗？
+  // lseek函数，移动文件的读写位置 off_t lseek(int fildes, off_t offset, int whence);
   if (lseek(fd, 0, SEEK_SET) == -1) {
     LOG_ERROR("Failed to seek file %s to position 0, due to %s .", file_name, strerror(errno));
     close(fd);
     return RC::IOERR_SEEK;
   }
-
+  // ssize_t write(int filedes, const void *buf, size_t nbytes); buf为写入的内容，nbytes为写入的长度
+  // 这里写page的内容是吧BPFileSubHeader中的内容写入文件，相当于落盘
   if (write(fd, (char *)&page, sizeof(Page)) != sizeof(Page)) {
     LOG_ERROR("Failed to write header to file %s, due to %s.", file_name, strerror(errno));
     close(fd);
     return RC::IOERR_WRITE;
   }
-
   close(fd);
   LOG_INFO("Successfully create %s.", file_name);
   return RC::SUCCESS;
@@ -83,6 +94,7 @@ RC DiskBufferPool::open_file(const char *file_name, int *file_id)
 {
   int fd, i;
   // This part isn't gentle, the better method is using LRU queue.
+  // 检查这个文件是否已经被打开
   for (i = 0; i < MAX_OPEN_FILE; i++) {
     if (open_list_[i]) {
       if (!strcmp(open_list_[i]->file_name, file_name)) {
@@ -93,8 +105,16 @@ RC DiskBufferPool::open_file(const char *file_name, int *file_id)
     }
   }
   i = 0;
-  while (i < MAX_OPEN_FILE && open_list_[i++])
+  while (i < MAX_OPEN_FILE && open_list_[i++])// 找到open_list_的最末端 i++先赋值，再加1
     ;
+
+  // open_list_[i] 取出来的每个打开文件的BPFileHandle 并不是bool值
+  // 但是因为在进行或与非时，不是0都认为是1，所以如果open_list_[i]不为0说明有文件打开
+  // 如果已经到了数组末尾并且最后一位也有已经打开的文件，说明打开的文件太多了
+
+  // 为什么要进行这样的检验呢？如果open_list_最后一位为空的话，应该在MAX_OPEN_FILE-1就退出，通过i++最终为MAX_OPEN_FILE
+  // 如果open_list_全满的时候，while循环应该在最后MAX_OPEN_FILE时退出，所以最终i为MAX_OPEN_FILE+1
+  // 所以为什么不直接检验i？=MAX_OPEN_FILE+1呢  (可能是认为如果最终只剩了一个文件的位置，也认为已经打开了很多文件？)
   if (i >= MAX_OPEN_FILE && open_list_[i - 1]) {
     LOG_ERROR("Failed to open file %s, because too much files has been opened.", file_name);
     return RC::BUFFERPOOL_OPEN_TOO_MANY_FILES;
@@ -106,6 +126,7 @@ RC DiskBufferPool::open_file(const char *file_name, int *file_id)
   }
   LOG_INFO("Successfully open file %s.", file_name);
 
+  // 通过BPFileHandle打开文件
   BPFileHandle *file_handle = new (std::nothrow) BPFileHandle();
   if (file_handle == nullptr) {
     LOG_ERROR("Failed to alloc memory of BPFileHandle for %s.", file_name);
@@ -121,6 +142,8 @@ RC DiskBufferPool::open_file(const char *file_name, int *file_id)
   cloned_file_name[file_name_len - 1] = '\0';
   file_handle->file_name = cloned_file_name;
   file_handle->file_desc = fd;
+
+  // 为文件分配好在内存中frame的位置
   if ((tmp = allocate_block(&file_handle->hdr_frame)) != RC::SUCCESS) {
     LOG_ERROR("Failed to allocate block for %s's BPFileHandle.", file_name);
     delete file_handle;
@@ -131,6 +154,8 @@ RC DiskBufferPool::open_file(const char *file_name, int *file_id)
   file_handle->hdr_frame->acc_time = current_time();
   file_handle->hdr_frame->file_desc = fd;
   file_handle->hdr_frame->pin_count = 1;
+
+  // 如果将文件加载到内存中的frame出现问题
   if ((tmp = load_page(0, file_handle, file_handle->hdr_frame)) != RC::SUCCESS) {
     file_handle->hdr_frame->pin_count = 0;
     dispose_block(file_handle->hdr_frame);
