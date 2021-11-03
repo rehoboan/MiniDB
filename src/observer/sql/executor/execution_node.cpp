@@ -76,7 +76,7 @@ JoinExeNode::~JoinExeNode() {
 
 
 RC JoinExeNode::init(Trx *trx, 
-          TupleSet *left_table, TupleSet *right_table,
+          const TupleSet *left_table, const TupleSet *right_table,
           TupleSchema tuple_schema,
           std::vector<JoinConditionFilter*> condition_filters) {
   trx_ = trx;
@@ -134,7 +134,7 @@ CartesianProductExeNode::~CartesianProductExeNode() {
 }
 
 RC CartesianProductExeNode::init(Trx *trx, 
-                                TupleSet *left_table, TupleSet *right_table,
+                                const TupleSet *left_table, const TupleSet *right_table,
                                 const TupleSchema &tuple_schema) {
   trx_ = trx;
   left_table_ = left_table;
@@ -147,8 +147,8 @@ RC CartesianProductExeNode::execute(TupleSet &tuple_set) {
   tuple_set.clear();
   tuple_set.set_schema(tuple_schema_);
 
-  std::vector<Tuple> left_tuples = left_table_->tuples();
-  std::vector<Tuple> right_tuples = right_table_->tuples();
+  const std::vector<Tuple> &left_tuples = left_table_->tuples();
+  const std::vector<Tuple> &right_tuples = right_table_->tuples();
 
   TupleSchema left_schema = left_table_->get_schema();
   TupleSchema right_schema = right_table_->get_schema();
@@ -173,4 +173,225 @@ RC CartesianProductExeNode::execute(TupleSet &tuple_set) {
   }
   return RC::SUCCESS;
 }
+AggregationExeNode::AggregationExeNode() : table_(nullptr){
+
+}
+
+AggregationExeNode::~AggregationExeNode() {
+
+}
+
+
+
+RC AggregationExeNode::init(Trx *trx, const TupleSet *table, std::vector<std::pair<const char *, AggInfo>> &&agg_infos){
+  trx_ = trx;
+  table_ = table;
+  agg_infos_ = agg_infos;
+  return RC::SUCCESS;
+  
+}
+
+RC AggregationExeNode::execute(Tuple &tuple, std::vector<const char *> &agg_columns) {
+  RC rc = RC::SUCCESS;
+  //<aggname, attr index in tuple>
+  std::unordered_map<const char *, int> map;
+  rc = init_index_map(map);
+
+  
+  std::vector<AggValue> res;
+  std::unordered_map<const char *, int> avg_count; //对相关列进行avg的计数操作
+  for(int i=0; i < agg_infos_.size(); i++) {
+    AggValue value;
+    //agg(table.attr)
+    const char *agg_column_name = agg_infos_[i].first;
+    AggInfo &agg_info = agg_infos_[i].second;
+    //counts默认为int，剩下需要根据attr type判断
+    if(agg_info.type == COUNTS) {
+      value.values.int_value = 0;
+      value.value_idx = 1;
+    } else {
+      int field_index = map[agg_column_name];
+      AttrType type = table_->get_schema().field(field_index).type();
+
+      switch (type){
+        case INTS:
+          if(agg_info.type == AVGS) {
+            value.value_idx = 2;
+          } else {
+            value.value_idx = 1;
+          }
+          break;
+        case FLOATS:
+          value.value_idx = 2;
+          break;
+        case CHARS:
+          value.value_idx = 3;
+          break;
+        default:
+          break;
+      }
+//todo  int_value 设为 null value
+    }
+    res.push_back(value);
+
+    if(agg_info.type == AVGS){
+      avg_count[agg_column_name] = 0;
+    }
+    
+  }
+  //执行聚合操作  对每一个元组为单位进行操作
+  const std::vector<Tuple> &tuples = table_->tuples();
+  for(const Tuple &tuple : tuples) {
+    for(int i=0; i<agg_infos_.size(); i++) {
+      std::pair<const char *, AggInfo> pair = agg_infos_[i];
+      const char *agg_column_name = pair.first;
+      AggType type = pair.second.type;
+      int idx = map[agg_column_name];
+      if(idx == -1) {
+        //count in full column
+        count(res[i]);
+      } else {
+        //get tuple value
+        const TupleValue &tuple_value = tuple.get(idx);
+        int type = tuple_value.get_type();
+        switch(type){
+          case COUNTS:
+            count(res[i]);
+          case MAXS:
+            max(tuple_value, res[i]);
+          case MINS:
+            min(tuple_value, res[i]);
+          case AVGS: {
+            avg_count[agg_column_name] += 1;
+            avg(tuple_value, res[i], avg_count[agg_column_name]);
+          }
+          default:
+            rc = RC::MISUSE;
+        }
+      }
+    }
+  }
+
+  //todo 结果加入到tuple中
+  return rc;
+}
+
+RC AggregationExeNode::init_index_map(std::unordered_map<const char *, int> &map) {
+  //get schema of tuple
+  TupleSchema schema = table_->get_schema();
+  for(auto iter = agg_infos_.begin(); iter != agg_infos_.end(); iter++) {
+    const char *agg_column_name = iter->first;
+    AggInfo agg_info = iter->second;
+    int field_index = -1;
+    if(strcmp(agg_info.attr_name, "*")!=0){
+      field_index = schema.index_of_field(agg_info.relation_name, agg_info.attr_name);
+      //不能对字符串进行avg聚合
+      if(schema.field(field_index).type() == CHARS && agg_info.type == AVGS) {
+        return RC::MISUSE;
+      }
+    }
+    map[agg_column_name] = field_index;
+  }
+  return RC::SUCCESS; 
+}
+//todo 考虑date
+RC AggregationExeNode::max(const TupleValue &value, AggValue &res) {
+  int type = value.get_type();
+
+  switch(type){
+    case INTS:{
+      int value_int = *(int *)value.get_value();
+      res.values.int_value = std::max(res.values.int_value, value_int);  
+    }
+    break;
+    case FLOATS:{
+      float value_float = *(float *)value.get_value();
+      res.values.float_value = std::max(res.values.float_value, value_float);
+    }
+    break;
+    case CHARS:{
+      const char * value_char = ((std::string *)value.get_value())->c_str();
+      if(strcmp(value_char, res.values.string_value) > 0) {
+        res.values.string_value = value_char;
+      }
+    }
+    break;
+    case DATES:{
+      //todo
+    }
+    break;
+    default:
+    return RC::MISUSE;
+  }
+  return RC::SUCCESS;
+}
+
+
+RC AggregationExeNode::min(const TupleValue &value, AggValue &res) {
+  int type = value.get_type();
+
+  switch(type){
+    case INTS:{
+      int value_int = *(int *)value.get_value();
+      res.values.int_value = std::min(res.values.int_value, value_int);  
+    }
+    break;
+    case FLOATS:{
+      float value_float = *(float *)value.get_value();
+      res.values.float_value = std::min(res.values.float_value, value_float);
+    }
+    break;
+    case CHARS:{
+      const char * value_char = ((std::string *)value.get_value())->c_str();
+      if(strcmp(value_char, res.values.string_value) < 0) {
+        res.values.string_value = value_char;
+      }
+    }
+    break;
+    case DATES:{
+      //todo
+    }
+    break;
+    default:
+    return RC::MISUSE;
+  }
+  return RC::SUCCESS;
+}
+
+RC AggregationExeNode::count(AggValue &res) {
+  res.values.int_value += 1;
+  return RC::SUCCESS;
+}
+
+RC AggregationExeNode::avg(const TupleValue &value, AggValue &res, int size){
+  int type = value.get_type();
+  
+  switch(type){
+    case INTS:{
+      int value_int = *(int *)value.get_value();
+      res.values.float_value = (res.values.float_value * (size - 1) + value_int) / size;
+    }
+    break;
+
+    case FLOATS:{
+      int value_float = *(float  *)value.get_value();
+      res.values.float_value = (res.values.float_value * (size -1) + value_float) / size;
+    }
+    break;
+
+    case CHARS:{
+      //char 不支持avg操作
+      return RC::MISUSE;
+    }
+    break;
+    case DATES:{
+      //todo
+    }
+    break;
+    default:
+      break;
+  }
+  return RC::SUCCESS;
+}
+
 

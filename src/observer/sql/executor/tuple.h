@@ -138,6 +138,7 @@ public:
   const std::vector<Tuple> &tuples() const;
 
   void print(std::ostream &os) const;
+  void print(std::ostream &os, std::vector<std::pair<const char *, const char *>> &select_columns, bool is_multi_table);
 public:
   const TupleSchema &schema() const {
     return schema_;

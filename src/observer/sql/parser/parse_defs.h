@@ -16,6 +16,7 @@ See the Mulan PSL v2 for more details. */
 #define __OBSERVER_SQL_PARSER_PARSE_DEFS_H__
 
 #include <stddef.h>
+#include <time.h>
 
 #define MAX_NUM 20
 #define MAX_REL_NAME 20
@@ -27,6 +28,7 @@ See the Mulan PSL v2 for more details. */
 typedef struct {
   char *relation_name;   // relation name (may be NULL) 表名
   char *attribute_name;  // attribute name              属性名
+  char *agg_name;   //aggregation function name （may be NULL）聚合函数名
 } RelAttr;
 
 typedef enum {
@@ -40,13 +42,30 @@ typedef enum {
 } CompOp;
 
 //属性值类型
-typedef enum { UNDEFINED, CHARS, INTS, FLOATS } AttrType;
-
+typedef enum { UNDEFINED, CHARS, INTS, FLOATS, DATES} AttrType;
+typedef enum {COUNTS, MAXS, MINS, AVGS} AggType;
 //属性值
 typedef struct _Value {
   AttrType type;  // type of value
   void *data;     // value
 } Value;
+
+typedef struct _AggValue {
+  union {
+    int int_value;
+    float float_value;
+    const char *string_value;
+    time_t date_value;
+  }values;
+  int value_idx;  //下表从1开始
+} AggValue;
+
+typedef struct _AggInfo {
+  AggType type;
+  const char *relation_name;
+  const char *attr_name;
+} AggInfo;
+
 
 typedef struct _Condition {
   int left_is_attr;    // TRUE if left-hand side is an attribute
@@ -179,6 +198,8 @@ extern "C" {
 
 void relation_attr_init(RelAttr *relation_attr, const char *relation_name, const char *attribute_name);
 void relation_attr_destroy(RelAttr *relation_attr);
+void relation_attr_with_agg_init(RelAttr *relation_attr, const char *agg_name, 
+                                  const char *relation_name, const char *attribute_name);
 
 void value_init_integer(Value *value, int v);
 void value_init_float(Value *value, float v);

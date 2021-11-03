@@ -43,48 +43,62 @@ struct hash_pair {
       return hash1 ^ hash2; 
     } 
 }; 
+struct hash_string { 
+    size_t operator()(const char *str) const{ 
+      int num = 10;
+      int hash = strlen(str);
+      while(*(++str)){
+        hash = num * 10 + (*str);
+      }
+      return hash & (0x7FFFFFFF); 
+    } 
+}; 
 
-// struct hash_string { 
-//     size_t operator()(const char *str) const{ 
-//       int num = 10;
-//       int hash = strlen(str);
-//       while(*(++str)){
-//         hash = num * 10 + (*str);
-//       }
-//       return hash & (0x7FFFFFFF); 
-//     } 
-// }; 
+struct equal_string {
+       bool operator()(const char* a,const char* b) const {
+           return strcmp(a,b)==0;
+     }
+};
 
-// struct equal_string {
-//        bool operator()(const char* a,const char* b) const {
-//            return strcmp(a,b)==0;
-//      }
-// };
+
 
 using TablePair = std::pair<const char *, const char *>;
 //<<tl,tr>, [conds1, conds2...]>
 using JoinConds = std::unordered_map<TablePair, std::vector<Condition>, hash_pair>;
 //<tablename, tupleset>     
 //using MapName2Value = std::unordered_map<const char *, TupleSet *, hash_string, equal_string>;
-using MapName2Value = std::unordered_map<const char *, TupleSet *>;
+using MapName2Value = std::unordered_map<const char *, TupleSet *, hash_string, equal_string>;
 
 
 //<tupleset, [t1,t2,........]>  连接后的临时表
 using MapValue2Name = std::unordered_map<TupleSet *, std::vector<const char *>>;
 
+void create_select_columns_with_star(const char *db, const Selects &selects, 
+                                    std::vector<std::pair<const char *, const char *>> &select_columns);
+
+                        
+const char * create_agg_columns_name(const char *table_name, const char *attr_name, 
+                                    const char *agg_name, bool display_table);
+
 //create and init executor node
 RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, const char *table_name, SelectExeNode &select_node);
 
 RC create_join_executor(Trx *trx, 
-                        TupleSet *left_table, TupleSet *right_table,
+                        const TupleSet &left_table, const TupleSet &right_table,
                         std::vector<Condition> &conditions,
                         JoinExeNode &join_node,
                         SessionEvent *session_event);
 
 RC create_cartesian_product_executor(Trx *trx, 
-                                      TupleSet *left_table, TupleSet *right_table,
+                                      const TupleSet &left_table, const TupleSet &right_table,
                                       CartesianProductExeNode &cartesian_product_node,
                                       SessionEvent *session_event);
+
+RC create_aggregation_executor(Trx *trx,
+                              const TupleSet &table,
+                              std::vector<std::pair<const char *, AggInfo>> &agg_infos,
+                              AggregationExeNode &agg_node,
+                              SessionEvent *session_event);
 
 //init join conditions
 void init_join_conditions_between_tables(const Selects &selects, JoinConds &map);
@@ -92,9 +106,11 @@ void init_join_conditions_between_tables(const Selects &selects, JoinConds &map)
 void init_kv_between_name_and_value(std::vector<TupleSet> &tuple_sets, 
                     MapName2Value &name2value, MapValue2Name &value2name);
 
+void init_aggregation(const char *table_name, const char *attr_name, const char *agg_name, AggInfo & agg_info);
+
 //join two tables depends on each join condition
 RC join_tables(Trx *trx, 
-              const JoinConds &join_conditions,
+              JoinConds &join_conditions,
               MapName2Value &name2value, MapValue2Name &value2name,
               SessionEvent *session_event, Session *session);
 RC cartesian_product(Trx *trx,
@@ -188,7 +204,7 @@ void ExecuteStage::handle_request(common::StageEvent *event) {
   exe_event->push_callback(cb);
 
   switch (sql->flag) {
-    case SCF_SELECT: { // select
+    case SCF_SELECT: { // se
       do_select(current_db, sql, exe_event->sql_event()->session_event());
       exe_event->done_immediate();
     }
@@ -311,11 +327,11 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
   }
 
   std::vector<TupleSet> tuple_sets;
-  for (SelectExeNode *&node: select_nodes) {
+  for (SelectExeNode *&node : select_nodes) {
     TupleSet tuple_set;
     rc = node->execute(tuple_set);
     if (rc != RC::SUCCESS) {
-      for (SelectExeNode *& tmp_node: select_nodes) {
+      for (SelectExeNode *& tmp_node : select_nodes) {
         delete tmp_node;
       }
       end_trx_if_need(session, trx, false);
@@ -324,11 +340,10 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
       tuple_sets.push_back(std::move(tuple_set));
     }
   }
-
-  std::stringstream ss;
+  TupleSet res_table;
   if (tuple_sets.size() > 1) {
     // 本次查询了多张表，需要做join操作
-    TupleSet res_table;
+
     JoinConds join_conditions;
     init_join_conditions_between_tables(selects, join_conditions);
 
@@ -336,7 +351,6 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
     MapName2Value name2value;
     MapValue2Name value2name;
     init_kv_between_name_and_value(tuple_sets, name2value, value2name);
-
 
     rc = join_tables(trx, join_conditions, name2value, value2name, session_event, session);
     if(rc == RC::SUCCESS) {
@@ -349,24 +363,115 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
       }
     }
   } else {
-    // 当前只查询一张表，直接返回结果即可
-    tuple_sets.front().print(ss);
+    // 当前只查询一张表
+    res_table = std::move(tuple_sets.front());
   }
 
   if(rc != RC::SUCCESS) {
     LOG_ERROR("Fail to execute join operation. ret=%d:%s", rc, strrc(rc));
   }
 
-  for (SelectExeNode *& tmp_node: select_nodes) {
-    delete tmp_node;
+
+  // for (SelectExeNode *& tmp_node: select_nodes) {
+  //   delete tmp_node;
+  // }
+  //<tablename, column name>
+  std::vector<std::pair<const char *, const char *>> select_columns;
+  //<aggregation column, agginfo>
+  std::vector<std::pair<const char *, AggInfo>> agg_infos;
+
+  bool is_multi_table = true;
+  //处理带星号的查询,不支持多个属性和*同时出现
+  if(selects.attr_num == 1 && strcmp(selects.attributes[0].attribute_name, "*") == 0 &&
+      selects.attributes[0].agg_name == nullptr) {
+    create_select_columns_with_star(db, selects, select_columns);
+  } else {
+    for(int i = 0; i < selects.attr_num; i++) {
+      const char *attr_name = selects.attributes[i].attribute_name;
+      const char *relation_name = selects.attributes[i].relation_name;
+      const char *agg_name = selects.attributes[i].agg_name;
+
+      //如果显示查询多张表但是选择的属性列没有表名前缀，说明元数据校验有问题。
+      if(relation_name == nullptr && selects.relation_num!=1 && agg_name==nullptr) {
+          LOG_ERROR("No tablename prefix when operating multi table selection");
+          continue;
+      } else if(relation_name == nullptr && selects.relation_num==1) {
+        relation_name = selects.relations[0];
+        is_multi_table = false;
+      }
+      //如果该聚集函数名为空，只是普通选择列，将该列加入到selection columns中
+      if(agg_name == nullptr)
+        select_columns.emplace_back(relation_name, attr_name); 
+      else {//如果是聚集函数列，构造聚集列名（判断是否是单表查询），初始化aggregation信息，加入到agg infos中
+        bool display_table = !(selects.relation_num==1);
+        const char *agg_column_name = create_agg_columns_name(relation_name, attr_name, agg_name, display_table);
+        AggInfo agg_info;
+        init_aggregation(relation_name, attr_name, agg_name, agg_info);        
+        agg_infos.emplace_back(agg_column_name, agg_info);
+      }
+    }
+    //初始化并执行聚集操作
+    bool is_agg = false;
+    std::stringstream ss;
+    if(select_columns.size()>0 && agg_infos.size()>0) {
+      rc = RC::SQL_SYNTAX;
+      char err[256];
+      sprintf("aggregation function and column selection conflict", err);
+      LOG_WARN("aggregation function and column selection conflict");
+      session_event->set_response(err);
+      return rc;
+    } else if(agg_infos.size()>0) {
+      is_agg = true;
+    }
+    if(!is_agg) {
+      res_table.print(ss, select_columns, is_multi_table);
+    } else {
+      AggregationExeNode agg_node;
+      rc = create_aggregation_executor(trx, res_table, agg_infos, agg_node, session_event);
+      //agg_node.init(trx, &res_table, agg_infos);
+      if(rc != RC::SUCCESS) {
+        end_trx_if_need(session, trx, false);
+        return rc;
+      }
+      Tuple agg_res;
+      std::vector<const char *> agg_columns;
+      rc = agg_node.execute(agg_res, agg_columns);
+      if(rc != RC::SUCCESS) {
+        end_trx_if_need(session, trx, false);
+        return rc;
+      }
+      //print aggregation selection columns
+      for(int i=0; i<agg_columns.size()-1; i++) {
+        ss<<agg_columns[i] << " | " <<std::endl;
+      }
+      ss<<agg_columns.back()<<std::endl;
+
+      //print data
+      const std::vector<std::shared_ptr<TupleValue>> &values = agg_res.values();
+      for(int i=0; i<agg_res.size()-1; i++) {
+        values[i]->to_string(ss);
+        ss<<" | "<<std::endl;
+      }
+      values.back()->to_string(ss);
+      ss<<std::endl;
+    }
   }
+
+  //print the selection columns
+  std::stringstream ss;
+  if(select_columns.size()>0)
+    res_table.print(ss, select_columns, is_multi_table);
+
+  
   session_event->set_response(ss.str());
   end_trx_if_need(session, trx, true);
   return rc;
 }
+
+
 //join operation between two relation
 RC join_tables(Trx *trx, 
-              const JoinConds &join_conditions,
+              JoinConds &join_conditions,
               MapName2Value &name2value, MapValue2Name &value2name,
               SessionEvent *session_event, Session *session) {
   RC rc = RC::SUCCESS;
@@ -374,10 +479,15 @@ RC join_tables(Trx *trx,
     JoinExeNode join_node;
     const char *left_table_name = iter->first.first;
     const char *right_table_name = iter->first.second;
-    std::vector<Condition> conditions = iter->second; 
+    std::cout<<left_table_name<<std::endl;
+    std::cout<<right_table_name<<std::endl;
+    
+    std::vector<Condition> conditions = std::move(iter->second); 
+    if(name2value.count(left_table_name)==0)
+      std::cout<<"couln't read left table"<<std::endl;
     rc = create_join_executor(trx,
-                      name2value[left_table_name],
-                      name2value[right_table_name],
+                      *name2value[left_table_name],
+                      *name2value[right_table_name],
                       conditions,
                       join_node,
                       session_event
@@ -427,7 +537,6 @@ RC cartesian_product(Trx *trx, const MapValue2Name &value2name, TupleSet &res_ta
     TupleSet join_tuple;
     TupleSet *right_table = i->first;
     CartesianProductExeNode cartesian_node;
-    create_cartesian_product_executor(trx, left_table, right_table, cartesian_node, session_event);
     rc = cartesian_node.execute(join_tuple);
     if(rc != RC::SUCCESS) {
       end_trx_if_need(session, trx, false);
@@ -463,6 +572,47 @@ static RC schema_add_field(Table *table, const char *field_name, TupleSchema &sc
   schema.add_if_not_exists(field_meta->type(), table->name(), field_meta->name());
   return RC::SUCCESS;
 }
+
+void create_select_columns_with_star(const char *db, const Selects &selects, 
+                                    std::vector<std::pair<const char *, const char *>> &select_columns) {
+  for(int i=0; i<selects.relation_num; i++) {
+    const char *table_name = selects.relations[i];
+    Table * table = DefaultHandler::get_default().find_table(db, table_name);
+    const TableMeta &table_meta = table->table_meta();
+    const int field_num = table_meta.field_num();
+    for(int i=0; i < field_num; i++) {
+      const FieldMeta *field_meta = table_meta.field(i);
+      if(field_meta->visible()) {
+        select_columns.emplace_back(table_name, field_meta->name());
+      }
+    }
+  }
+}
+const char* create_agg_columns_name(const char *table_name, const char *attr_name, 
+                                    const char *agg_name, bool display_table) {
+  //display mode: aggname(tablename.attrname)
+  //nondisplay mode: aggname(attriname)
+  int table_name_len = 0;
+  if(table_name != nullptr)
+    table_name_len = strlen(table_name);
+  //判断是否需要加上table前缀
+  char* res_part1 = new char(table_name_len + 1 + strlen(attr_name));
+  if(table_name_len && (display_table || strcmp(attr_name, "*")!=0)) {
+    strncpy(res_part1, table_name, table_name_len);
+    strcat(res_part1, ".");
+    strcat(res_part1, attr_name);
+  } else {
+    strncpy(res_part1, attr_name, strlen(attr_name));
+  }
+  char *agg_columns_name = new char(strlen(res_part1) + 2 + strlen(agg_name));
+  strncpy(agg_columns_name, agg_name, strlen(agg_name));
+  strcat(agg_columns_name, "(");
+  strcat(agg_columns_name, res_part1);
+  strcat(agg_columns_name, ")");
+
+  return agg_columns_name;
+}
+
 
 // 把所有的表和只跟这张表关联的condition都拿出来，生成最底层的select 执行节点
 RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, const char *table_name, SelectExeNode &select_node) {
@@ -518,15 +668,15 @@ RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, c
 }
 
 RC create_join_executor(Trx *trx,
-                        TupleSet *left_table, TupleSet *right_table,
+                        const TupleSet &left_table, const TupleSet &right_table,
                         std::vector<Condition> &conditions,
                         JoinExeNode &join_node,
                         SessionEvent *session_event) {
   //update join schema
   TupleSchema schema;
-  schema.append(left_table->get_schema());
+  schema.append(left_table.get_schema());
   if(&left_table != &right_table)
-    schema.append(right_table->get_schema());
+    schema.append(right_table.get_schema());
   
   //create join condition filter vector
   std::vector<JoinConditionFilter *> condition_filters;
@@ -543,22 +693,30 @@ RC create_join_executor(Trx *trx,
   }
   
   return join_node.init(trx, 
-                  left_table, right_table,
+                  &left_table, &right_table,
                   std::move(schema), 
                   std::move(condition_filters));
 }
 
 
 RC create_cartesian_product_executor(Trx *trx, 
-                                      TupleSet *left_table, TupleSet *right_table,
+                                      const TupleSet &left_table, const TupleSet &right_table,
                                       CartesianProductExeNode &cartesian_product_node,
                                       SessionEvent *session_event) {
   TupleSchema schema;
-  schema.append(left_table->get_schema());
-  if(left_table != right_table)
-    schema.append(right_table->get_schema());
-  return cartesian_product_node.init(trx, left_table, right_table, schema);
+  schema.append(left_table.get_schema());
+  if(&left_table != &right_table)
+    schema.append(right_table.get_schema());
+  return cartesian_product_node.init(trx, &left_table, &right_table, schema);
 
+}
+
+RC create_aggregation_executor(Trx *trx,
+                              const TupleSet &table,
+                              std::vector<std::pair<const char *, AggInfo>> &agg_infos,
+                              AggregationExeNode &agg_node,
+                              SessionEvent *session_event) {
+  return agg_node.init(trx, &table, std::move(agg_infos));                                
 }
 
 
@@ -610,11 +768,12 @@ void init_join_conditions_between_tables(const Selects &selects, JoinConds &map)
 }
 void init_kv_between_name_and_value(std::vector<TupleSet> &tuple_sets, 
                     MapName2Value &name2value, MapValue2Name &value2name) {
-  
+
   for(int i=0; i<tuple_sets.size(); i++) {
     TupleSet *tuple_set = &tuple_sets[i];
-    TupleSchema schema = tuple_set[i].get_schema();
-    const char * table_name = schema.field(0).table_name();
+    TupleSchema schema = tuple_set->get_schema();
+    const char *table_name = schema.field(0).table_name();
+
     if(name2value.count(table_name) == 0) {
       name2value[table_name] = tuple_set;
     }
@@ -626,7 +785,23 @@ void init_kv_between_name_and_value(std::vector<TupleSet> &tuple_sets,
     else {
       value2name[tuple_set].push_back(table_name);
     }
+  }
+}
+//init aggregation operation type
+void init_aggregation(const char *table_name, const char *attr_name, const char *agg_name, AggInfo & agg_info) {
+  agg_info.relation_name = table_name;
+  agg_info.attr_name = attr_name;
 
+  if(strcmp(agg_name, "COUNT")==0) {
+    agg_info.type = AggType::COUNTS;
+  } else if(strcmp(agg_name, "MAX")==0) {
+    agg_info.type = AggType::MAXS;
+  } else if(strcmp(agg_name, "MIN")==0) {
+    agg_info.type = AggType::MINS;
+  } else if(strcmp(agg_name, "AVG")==0) {
+    agg_info.type = AggType::AVGS;
+  } else {
+    LOG_ERROR("type missing");
   }
 }
 

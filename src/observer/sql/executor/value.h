@@ -19,6 +19,7 @@ See the Mulan PSL v2 for more details. */
 
 #include <string>
 #include <ostream>
+#include "sql/parser/parse.h"
 
 class TupleValue {
 public:
@@ -27,12 +28,14 @@ public:
 
   virtual void to_string(std::ostream &os) const = 0;
   virtual int compare(const TupleValue &other) const = 0;
+  virtual const void *get_value() const = 0;
+  virtual AttrType get_type() const = 0;
 private:
 };
 
 class IntValue : public TupleValue {
 public:
-  explicit IntValue(int value) : value_(value) {
+  explicit IntValue(int value) : value_(value), type_(INTS) {
   }
 
   void to_string(std::ostream &os) const override {
@@ -44,13 +47,20 @@ public:
     return value_ - int_other.value_;
   }
 
+  void set_value(int value);
+
+  const void *get_value() const override;
+
+  AttrType get_type() const override;
+
 private:
   int value_;
+  AttrType type_;
 };
 
 class FloatValue : public TupleValue {
 public:
-  explicit FloatValue(float value) : value_(value) {
+  explicit FloatValue(float value) : value_(value), type_(FLOATS) {
   }
 
   void to_string(std::ostream &os) const override {
@@ -68,13 +78,21 @@ public:
     }
     return 0;
   }
+
+  void set_value(float value);
+
+  const void *get_value() const override;
+
+  AttrType get_type() const override;
+
 private:
   float value_;
+  AttrType type_;
 };
 
 class StringValue : public TupleValue {
 public:
-  StringValue(const char *value, int len) : value_(value, len){
+  StringValue(const char *value, int len) : value_(value, len), type_(CHARS){
   }
   explicit StringValue(const char *value) : value_(value) {
   }
@@ -87,9 +105,41 @@ public:
     const StringValue &string_other = (const StringValue &)other;
     return strcmp(value_.c_str(), string_other.value_.c_str());
   }
+
+  void set_value(std::string &value);
+
+  const void *get_value() const override;
+
+  AttrType get_type() const override;
 private:
   std::string value_;
+  AttrType type_;
 };
 
+class DateValue : public TupleValue{
+public:
+    explicit DateValue(const char *value, int len) : value_(value, len), type_(DATES){
+    }
+    explicit DateValue(time_t value);
+
+    void to_string(std::ostream &os) const override;
+
+    void set_value(std::string &value);
+    void set_value(time_t &value);
+
+    time_t get_value_time_t() const;
+    const void *get_value() const override;
+
+    AttrType get_type() const override;
+
+    int compare(const TupleValue &other) const override;
+
+private:
+    static time_t str_to_time_t(const std::string *str) ;
+    static std::string time_t_to_str(time_t time) ;
+private:
+    std::string value_;
+    AttrType type_;
+};
 
 #endif //__OBSERVER_SQL_EXECUTOR_VALUE_H_
