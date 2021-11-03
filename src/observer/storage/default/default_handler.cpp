@@ -136,12 +136,12 @@ RC DefaultHandler::drop_table(const char *dbname, const char *relation_name) {
   return db->drop_table(relation_name);
 }
 
-RC DefaultHandler::create_index(Trx *trx, const char *dbname, const char *relation_name, const char *index_name, const char *attribute_name) {
+RC DefaultHandler::create_index(Trx *trx, const char *dbname, const char *relation_name, const char *index_name, char * const attribute_name[], int len, int unique) {
   Table *table = find_table(dbname, relation_name);
   if (nullptr == table) {
     return RC::SCHEMA_TABLE_NOT_EXIST;
   }
-  return table->create_index(trx, index_name, attribute_name);
+  return table->create_index(trx, index_name, attribute_name, len, unique);
 }
 
 RC DefaultHandler::drop_index(Trx *trx, const char *dbname, const char *relation_name, const char *index_name) {
@@ -149,13 +149,27 @@ RC DefaultHandler::drop_index(Trx *trx, const char *dbname, const char *relation
   return RC::GENERIC_ERROR;
 }
 
-RC DefaultHandler::insert_record(Trx *trx, const char *dbname, const char *relation_name, int value_num, const Value *values) {
+RC DefaultHandler::insert_record(Trx *trx, const char *dbname, const char *relation_name, int value_num, const Value *values, int row_num, const int *row_end) {
   Table *table = find_table(dbname, relation_name);
   if (nullptr == table) {
     return RC::SCHEMA_TABLE_NOT_EXIST;
   }
+  //insert rows
+  int pre = 0;
+  for(int i = 0; i < row_num; i++){
+    int num = row_end[i] - pre;
 
-  return table->insert_record(trx, value_num, values);
+    RC rc = table->insert_record(trx, num, values + pre);
+
+    pre = row_end[i];
+
+    if(rc != SUCCESS){
+      //FAILURE
+      return rc;
+    }
+  }
+  //all success
+  return SUCCESS;
 }
 RC DefaultHandler::delete_record(Trx *trx, const char *dbname, const char *relation_name,
                                  int condition_num, const Condition *conditions, int *deleted_count) {
@@ -173,17 +187,17 @@ RC DefaultHandler::delete_record(Trx *trx, const char *dbname, const char *relat
 }
 
 RC DefaultHandler::update_record(Trx *trx, const char *dbname, const char *relation_name, const char *attribute_name, const Value *value,
-                          int condition_num, const Condition *conditions, int *updated_count) {
+                                 int condition_num, const Condition *conditions, int *updated_count) {
   Table *table = find_table(dbname, relation_name);
   if (nullptr == table) {
     return RC::SCHEMA_TABLE_NOT_EXIST;
   }
-    CompositeConditionFilter condition_filter;
-    RC rc = condition_filter.init(*table, conditions, condition_num);
-    if (rc != RC::SUCCESS) {
-        return rc;
-    }
-    return table->update_record(trx, &condition_filter, attribute_name, value, updated_count);
+  CompositeConditionFilter condition_filter;
+  RC rc = condition_filter.init(*table, conditions, condition_num);
+  if (rc != RC::SUCCESS) {
+    return rc;
+  }
+  return table->update_record(trx, &condition_filter, attribute_name, value, updated_count);
 }
 
 Db *DefaultHandler::find_db(const char *dbname) const {

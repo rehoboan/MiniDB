@@ -88,7 +88,9 @@ class StringValue : public TupleValue {
 public:
     explicit StringValue(const char *value, int len) : value_(value, len), type_(CHARS){
     }
-    explicit StringValue(const char *value) : value_(value) {
+//    explicit StringValue(const char *value) : value_(value) {
+//    }
+    explicit StringValue() : value_("NULL", 4), type_(CHARS), is_null_(true) {
     }
 
     void to_string(std::ostream &os) const override;

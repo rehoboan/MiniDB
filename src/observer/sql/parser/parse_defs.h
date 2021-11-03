@@ -15,169 +15,184 @@ See the Mulan PSL v2 for more details. */
 #ifndef __OBSERVER_SQL_PARSER_PARSE_DEFS_H__
 #define __OBSERVER_SQL_PARSER_PARSE_DEFS_H__
 
-#include <stddef.h>
 #define NULL_VALUE (1<<31)
+#define ALLOW_NULL(type) (type & NULL_VALUE)
+#define TYPE(type) (type & (~NULL_VALUE))
 #define MAX_NUM 20
 #define MAX_ROW 50
 #define MAX_VALUE_NUM (MAX_NUM*MAX_ROW)
+#define MAX_INDEX_FIELD 10
 #define MAX_REL_NAME 20
 #define MAX_ATTR_NAME 20
 #define MAX_ERROR_MESSAGE 20
 #define MAX_DATA 50
+#define MAX_CHAR_LEN 100
 #define MAX_DATE_LEN 10
 
+#define SYS_TEXT_TABLE_NAME "__TEXT"
+#define SYS_TEXT_TABLE_COL1 "__TEXT_COL_INT1"
+#define SYS_TEXT_TABLE_COL2 "__TEXT_COL_INT2"
+#define SYS_TEXT_TABLE_COL3 "__TEXT_COL_INT3"
+#define SYS_TEXT_TABLE_COL "__TEXT_COL"
+#define TEXT_LEN (2*1000)
 
+#include <stddef.h>
+#include <stdbool.h>
 
 //属性结构体
 typedef struct {
-  char *relation_name;   // relation name (may be NULL) 表名
-  char *attribute_name;  // attribute name              属性名
+    char *relation_name;   // relation name (may be NULL) 表名
+    char *attribute_name;  // attribute name              属性名
 } RelAttr;
 
 typedef enum {
-  EQUAL_TO,     //"="     0
-  LESS_EQUAL,   //"<="    1
-  NOT_EQUAL,    //"<>"    2
-  LESS_THAN,    //"<"     3
-  GREAT_EQUAL,  //">="    4
-  GREAT_THAN,   //">"     5
-  NO_OP
+    EQUAL_TO,     //"="     0
+    LESS_EQUAL,   //"<="    1
+    NOT_EQUAL,    //"<>"    2
+    LESS_THAN,    //"<"     3
+    GREAT_EQUAL,  //">="    4
+    GREAT_THAN,   //">"     5
+    OP_IS,
+    OP_IS_NOT,
+    NO_OP
 } CompOp;
 
 //属性值类型
-typedef enum { UNDEFINED, CHARS, INTS, FLOATS, DATES } AttrType;
+typedef enum { UNDEFINED, CHARS, INTS, FLOATS, DATES, TEXTS } AttrType;
 
 //属性值
 typedef struct _Value {
-  AttrType type;  // type of value
-  void *data;     // value
+    int type;  // type of value
+    void *data;     // value
 } Value;
 
 typedef struct _Condition {
-  int left_is_attr;    // TRUE if left-hand side is an attribute
-                       // 1时，操作符左边是属性名，0时，是属性值
-  Value left_value;    // left-hand side value if left_is_attr = FALSE
-  RelAttr left_attr;   // left-hand side attribute
-  CompOp comp;         // comparison operator
-  int right_is_attr;   // TRUE if right-hand side is an attribute
-                       // 1时，操作符右边是属性名，0时，是属性值
-  RelAttr right_attr;  // right-hand side attribute if right_is_attr = TRUE 右边的属性
-  Value right_value;   // right-hand side value if right_is_attr = FALSE
+    int left_is_attr;    // TRUE if left-hand side is an attribute
+    // 1时，操作符左边是属性名，0时，是属性值
+    Value left_value;    // left-hand side value if left_is_attr = FALSE
+    RelAttr left_attr;   // left-hand side attribute
+    CompOp comp;         // comparison operator
+    int right_is_attr;   // TRUE if right-hand side is an attribute
+    // 1时，操作符右边是属性名，0时，是属性值
+    RelAttr right_attr;  // right-hand side attribute if right_is_attr = TRUE 右边的属性
+    Value right_value;   // right-hand side value if right_is_attr = FALSE
 } Condition;
 
 // struct of select
 typedef struct {
-  size_t    attr_num;               // Length of attrs in Select clause
-  RelAttr   attributes[MAX_NUM];    // attrs in Select clause
-  size_t    relation_num;           // Length of relations in Fro clause
-  char *    relations[MAX_NUM];     // relations in From clause
-  size_t    condition_num;          // Length of conditions in Where clause
-  Condition conditions[MAX_NUM];    // conditions in Where clause
+    size_t    attr_num;               // Length of attrs in Select clause
+    RelAttr   attributes[MAX_NUM];    // attrs in Select clause
+    size_t    relation_num;           // Length of relations in Fro clause
+    char *    relations[MAX_NUM];     // relations in From clause
+    size_t    condition_num;          // Length of conditions in Where clause
+    Condition conditions[MAX_NUM];    // conditions in Where clause
 } Selects;
 
 // struct of insert
 typedef struct {
-  char *relation_name;    // Relation to insert into
-  size_t value_num;       // Length of values
-  Value values[MAX_NUM];  // values to insert
-  size_t row_num;
-  size_t row_end[MAX_ROW];
+    char *relation_name;    // Relation to insert into
+    size_t value_num;       // Length of values
+    Value values[MAX_NUM];  // values to insert
+    size_t row_num;
+    int row_end[MAX_ROW];
 } Inserts;
 
 // struct of delete
 typedef struct {
-  char *relation_name;            // Relation to delete from
-  size_t condition_num;           // Length of conditions in Where clause
-  Condition conditions[MAX_NUM];  // conditions in Where clause
+    char *relation_name;            // Relation to delete from
+    size_t condition_num;           // Length of conditions in Where clause
+    Condition conditions[MAX_NUM];  // conditions in Where clause
 } Deletes;
 
 // struct of update
 typedef struct {
-  char *relation_name;            // Relation to update
-  char *attribute_name;           // Attribute to update
-  Value value;                    // update value
-  size_t condition_num;           // Length of conditions in Where clause
-  Condition conditions[MAX_NUM];  // conditions in Where clause
+    char *relation_name;            // Relation to update
+    char *attribute_name;           // Attribute to update
+    Value value;                    // update value
+    size_t condition_num;           // Length of conditions in Where clause
+    Condition conditions[MAX_NUM];  // conditions in Where clause
 } Updates;
 
 typedef struct {
-  char *name;     // Attribute name
-  AttrType type;  // Type of attribute
-  size_t length;  // Length of attribute
+    char *name;     // Attribute name
+    int type;  // Type of attribute
+    size_t length;  // Length of attribute
 } AttrInfo;
 
 // struct of craete_table
 typedef struct {
-  char *relation_name;           // Relation name
-  size_t attribute_count;        // Length of attribute
-  AttrInfo attributes[MAX_NUM];  // attributes
+    char *relation_name;           // Relation name
+    size_t attribute_count;        // Length of attribute
+    AttrInfo attributes[MAX_NUM];  // attributes
 } CreateTable;
 
 // struct of drop_table
 typedef struct {
-  char *relation_name;  // Relation name
+    char *relation_name;  // Relation name
 } DropTable;
 
 // struct of create_index
 typedef struct {
-  char *index_name;      // Index name
-  char *relation_name;   // Relation name
-  char *attribute_name;  // Attribute name
+    char *index_name;      // Index name
+    char *relation_name;   // Relation name
+    char *attribute_name[MAX_INDEX_FIELD];   // Attribute name
+    int index_field_num;
+    char unique;
 } CreateIndex;
 
 // struct of  drop_index
 typedef struct {
-  const char *index_name;  // Index name
+    const char *index_name;  // Index name
 } DropIndex;
 
 typedef struct {
-  const char *relation_name;
+    const char *relation_name;
 } DescTable;
 
 typedef struct {
-  const char *relation_name;
-  const char *file_name;
+    const char *relation_name;
+    const char *file_name;
 } LoadData;
 
 union Queries {
-  Selects selection;
-  Inserts insertion;
-  Deletes deletion;
-  Updates update;
-  CreateTable create_table;
-  DropTable drop_table;
-  CreateIndex create_index;
-  DropIndex drop_index;
-  DescTable desc_table;
-  LoadData load_data;
-  char *errors;
+    Selects selection;
+    Inserts insertion;
+    Deletes deletion;
+    Updates update;
+    CreateTable create_table;
+    DropTable drop_table;
+    CreateIndex create_index;
+    DropIndex drop_index;
+    DescTable desc_table;
+    LoadData load_data;
+    char *errors;
 };
 
 // 修改yacc中相关数字编码为宏定义
 enum SqlCommandFlag {
-  SCF_ERROR = 0,
-  SCF_SELECT,
-  SCF_INSERT,
-  SCF_UPDATE,
-  SCF_DELETE,
-  SCF_CREATE_TABLE,
-  SCF_DROP_TABLE,
-  SCF_CREATE_INDEX,
-  SCF_DROP_INDEX,
-  SCF_SYNC,
-  SCF_SHOW_TABLES,
-  SCF_DESC_TABLE,
-  SCF_BEGIN,
-  SCF_COMMIT,
-  SCF_ROLLBACK,
-  SCF_LOAD_DATA,
-  SCF_HELP,
-  SCF_EXIT
+    SCF_ERROR = 0,
+    SCF_SELECT,
+    SCF_INSERT,
+    SCF_UPDATE,
+    SCF_DELETE,
+    SCF_CREATE_TABLE,
+    SCF_DROP_TABLE,
+    SCF_CREATE_INDEX,
+    SCF_DROP_INDEX,
+    SCF_SYNC,
+    SCF_SHOW_TABLES,
+    SCF_DESC_TABLE,
+    SCF_BEGIN,
+    SCF_COMMIT,
+    SCF_ROLLBACK,
+    SCF_LOAD_DATA,
+    SCF_HELP,
+    SCF_EXIT
 };
 // struct of flag and sql_struct
 typedef struct Query {
-  enum SqlCommandFlag flag;
-  union Queries sstr;
+    enum SqlCommandFlag flag;
+    union Queries sstr;
 } Query;
 
 #ifdef __cplusplus
@@ -195,10 +210,10 @@ void value_init_date(Value *value, const char *v);
 void value_destroy(Value *value);
 
 void condition_init(Condition *condition, CompOp comp, int left_is_attr, RelAttr *left_attr, Value *left_value,
-    int right_is_attr, RelAttr *right_attr, Value *right_value);
+                    int right_is_attr, RelAttr *right_attr, Value *right_value);
 void condition_destroy(Condition *condition);
 
-void attr_info_init(AttrInfo *attr_info, const char *name, AttrType type, size_t length);
+void attr_info_init(AttrInfo *attr_info, const char *name, AttrType type, size_t length, bool nullable);
 void attr_info_destroy(AttrInfo *attr_info);
 
 void selects_init(Selects *selects, ...);
@@ -207,7 +222,7 @@ void selects_append_relation(Selects *selects, const char *relation_name);
 void selects_append_conditions(Selects *selects, Condition conditions[], size_t condition_num);
 void selects_destroy(Selects *selects);
 
-void inserts_init(Inserts *inserts, const char *relation_name, Value values[], size_t value_num, size_t row_end[], size_t row_num);
+void inserts_init(Inserts *inserts, const char *relation_name, Value values[], size_t value_num, const int row_end[], size_t row_num);
 //void inserts_init(Inserts *inserts, const char *relation_name, Value values[], size_t value_num);
 void inserts_destroy(Inserts *inserts);
 
@@ -216,7 +231,7 @@ void deletes_set_conditions(Deletes *deletes, Condition conditions[], size_t con
 void deletes_destroy(Deletes *deletes);
 
 void updates_init(Updates *updates, const char *relation_name, const char *attribute_name, Value *value,
-    Condition conditions[], size_t condition_num);
+                  Condition conditions[], size_t condition_num);
 void updates_destroy(Updates *updates);
 
 void create_table_append_attribute(CreateTable *create_table, AttrInfo *attr_info);
@@ -227,7 +242,7 @@ void drop_table_init(DropTable *drop_table, const char *relation_name);
 void drop_table_destroy(DropTable *drop_table);
 
 void create_index_init(
-    CreateIndex *create_index, const char *index_name, const char *relation_name, const char *attr_name);
+        CreateIndex *create_index, const char *index_name, const char *relation_name, const char *attr_name[], int len, char unique);
 void create_index_destroy(CreateIndex *create_index);
 
 void drop_index_init(DropIndex *drop_index, const char *index_name);

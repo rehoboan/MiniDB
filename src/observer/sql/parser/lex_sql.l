@@ -68,11 +68,20 @@ QUOTE            [\'\"]
 [Ii][Nn][Tt]					                   RETURN_TOKEN(INT_T);
 [Cc][Hh][Aa][Rr]				                 RETURN_TOKEN(STRING_T);
 [Ff][Ll][Oo][Aa][Tt]			               RETURN_TOKEN(FLOAT_T);
-[Dd][Aa][Tt][Ee]				                 RETURN_TOKEN(DATE_T);
+
+[Dd][Aa][Tt][Ee]				                RETURN_TOKEN(DATE_T);
 [Tt][Ee][Xx][Tt]								RETURN_TOKEN(TEXT_T);
+[Uu][Nn][Ii][Qq][Uu][Ee]                        RETURN_TOKEN(UNIQUE);
+
 [Ll][Oo][Aa][Dd]			                   RETURN_TOKEN(LOAD);
 [Dd][Aa][Tt][Aa]	                       RETURN_TOKEN(DATA);
 [Ii][Nn][Ff][Ii][Ll][Ee]                 RETURN_TOKEN(INFILE);
+
+[Ii][Ss]										RETURN_TOKEN(IS);
+[Nn][Oo][Tt]									RETURN_TOKEN(NOT);
+[Nn][Uu][Ll][Ll][Aa][Bb][Ll][Ee]				RETURN_TOKEN(NULLABLE);
+[Nn][Uu][Ll][Ll]								RETURN_TOKEN(NULL_T);
+
 {ID}							                       yylval->string=strdup(yytext); RETURN_TOKEN(ID);
 "("								                       RETURN_TOKEN(LBRACE);
 ")"								                       RETURN_TOKEN(RBRACE);
@@ -84,11 +93,6 @@ QUOTE            [\'\"]
 "<"                                      RETURN_TOKEN(LT);
 ">="                                     RETURN_TOKEN(GE);
 ">"                                      RETURN_TOKEN(GT);
-
-[Ii][Ss]										RETURN_TOKEN(IS);
-[Nn][Oo][Tt]									RETURN_TOKEN(NOT);
-[Nn][Uu][Ll][Ll][Aa][Bb][Ll][Ee]				RETURN_TOKEN(NULLABLE);
-[Nn][Uu][Ll][Ll]								RETURN_TOKEN(NULL_T);
 
 {QUOTE}[0-9]{4}-((0?[1-9])|(1[0-2]))-((0?[1-9])|([12][0-9])|(3[0-1])){QUOTE}	     {yylval->string=strdup(yytext);RETURN_TOKEN(DATE);}
 {QUOTE}[\40\42\47A-Za-z0-9_/\.\-]*{QUOTE}	     yylval->string=strdup(yytext); RETURN_TOKEN(SSS);

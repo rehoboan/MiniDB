@@ -25,7 +25,7 @@ static const Json::StaticString FIELD_INDEXES("indexes");
 
 std::vector<FieldMeta> TableMeta::sys_fields_;
 
-TableMeta::TableMeta(const TableMeta &other) :
+TableMeta::TableMeta(TableMeta &other) :
         name_(other.name_),
         fields_(other.fields_),
         indexes_(other.indexes_),
@@ -40,15 +40,22 @@ void TableMeta::swap(TableMeta &other) noexcept{
 }
 
 RC TableMeta::init_sys_fields() {
-  sys_fields_.reserve(1);
+  sys_fields_.reserve(2);
   FieldMeta field_meta;
   RC rc = field_meta.init(Trx::trx_field_name(), Trx::trx_field_type(), 0, Trx::trx_field_len(), false);
   if (rc != RC::SUCCESS) {
     LOG_ERROR("Failed to init trx field. rc = %d:%s", rc, strrc(rc));
     return rc;
   }
-
   sys_fields_.push_back(field_meta);
+
+  FieldMeta null_field_meta;
+  rc = null_field_meta.init(TableMeta::null_field_name(), TableMeta::null_field_type(), Trx::trx_field_len(), TableMeta::null_field_len(), false);
+  if (rc != RC::SUCCESS) {
+    LOG_PANIC("Failed to init null field. rc = %d:%s", rc, strrc(rc));
+    return rc;
+  }
+  sys_fields_.push_back(null_field_meta);
   return rc;
 }
 RC TableMeta::init(const char *name, int field_num, const AttrInfo attributes[]) {
@@ -109,16 +116,39 @@ const FieldMeta * TableMeta::trx_field() const {
   return &fields_[0];
 }
 
-const FieldMeta * TableMeta::field(int index) const {
+FieldMeta * TableMeta::field(int index) {
   return &fields_[index];
 }
-const FieldMeta * TableMeta::field(const char *name) const {
+
+int TableMeta::getIndex(const char *name) const {
+  if (nullptr == name) {
+    return -1;
+  }
+  for (int i = 0; i < fields_.size(); i++) {
+    if (0 == strcmp(fields_[i].name(), name)) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+std::vector<FieldMeta *> TableMeta::fields(std::vector<std::string> fields){
+  std::vector<FieldMeta *> res;
+  for(auto it : fields){
+    FieldMeta * field_meta = field(it.c_str());
+    if(field_meta != nullptr){
+      res.push_back(field_meta);
+    }
+  }
+  return res;
+}
+FieldMeta * TableMeta::field(const char *name) {
   if (nullptr == name) {
     return nullptr;
   }
-  for (const FieldMeta &field : fields_) {
-    if (0 == strcmp(field.name(), name)) {
-      return &field;
+  for (int i = 0;i < fields_.size(); i++) {
+    if (0 == strcmp(fields_[i].name(), name)) {
+      return &(fields_[i]);
     }
   }
   return nullptr;
@@ -132,6 +162,7 @@ const FieldMeta * TableMeta::find_field_by_offset(int offset) const {
   }
   return nullptr;
 }
+
 int TableMeta::field_num() const {
   return fields_.size();
 }
@@ -149,16 +180,25 @@ const IndexMeta * TableMeta::index(const char *name) const {
   return nullptr;
 }
 
-const IndexMeta * TableMeta::find_index_by_field(const char *field) const {
+const IndexMeta * TableMeta::find_index_by_field(std::vector<FieldMeta *> field_metas) const {
   for (const IndexMeta &index : indexes_) {
-    if (0 == strcmp(index.field(), field)) {
-      return &index;
+    int i = 0;
+    for (; i < field_metas.size(); ++i) {
+      if(index.field(i) == nullptr){
+        break;
+      }
+      if(strcmp(index.field(i),field_metas[i]->name()) != 0){
+        break;
+      }
+      if(i == field_metas.size()){
+        return &index;
+      }
     }
   }
   return nullptr;
 }
 
-const IndexMeta * TableMeta::index(int i ) const {
+IndexMeta * TableMeta::index(int i ) {
   return &indexes_[i];
 }
 
@@ -246,8 +286,8 @@ int TableMeta::deserialize(std::istream &is) {
     }
   }
 
-  std::sort(fields.begin(), fields.end(), 
-      [](const FieldMeta &f1, const FieldMeta &f2){return f1.offset() < f2.offset();});
+  std::sort(fields.begin(), fields.end(),
+            [](const FieldMeta &f1, const FieldMeta &f2){return f1.offset() < f2.offset();});
 
   name_.swap(table_name);
   fields_.swap(fields);
@@ -255,7 +295,7 @@ int TableMeta::deserialize(std::istream &is) {
 
   const Json::Value &indexes_value = table_value[FIELD_INDEXES];
   if (!indexes_value.empty()) {
-    if (!indexes_value.isArray()) {
+    if (!indexes_value.isArray() || indexes_value.size() < 0) {
       LOG_ERROR("Invalid table meta. indexes is not array, json value=%s", fields_value.toStyledString().c_str());
       return -1;
     }
