@@ -340,6 +340,9 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
       tuple_sets.push_back(std::move(tuple_set));
     }
   }
+  for (SelectExeNode *& tmp_node: select_nodes) {
+    delete tmp_node;
+  }
   TupleSet res_table;
   if (tuple_sets.size() > 1) {
     // 本次查询了多张表，需要做join操作
@@ -445,7 +448,7 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
     }
     //print aggregation selection columns
     for(int i=0; i<agg_columns.size()-1; i++) {
-      ss<<agg_columns[i] << " | " <<std::endl;
+      ss<<agg_columns[i] << " | ";
     }
     ss<<agg_columns.back()<<std::endl;
 
@@ -453,7 +456,7 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
     const std::vector<std::shared_ptr<TupleValue>> &values = agg_res.values();
     for(int i=0; i<agg_res.size()-1; i++) {
       values[i]->to_string(ss);
-      ss<<" | "<<std::endl;
+      ss<<" | ";
     }
     values.back()->to_string(ss);
     ss<<std::endl;
