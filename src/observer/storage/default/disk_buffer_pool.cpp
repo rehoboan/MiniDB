@@ -62,6 +62,7 @@ RC DiskBufferPool::create_file(const char *file_name)
 
   Page page;
   memset(&page, 0, sizeof(Page)); // void *memset(void *s, int ch, size_t n);
+  // 将开始写入page的位置定位到最前面
 
   BPFileSubHeader *fileSubHeader;
   fileSubHeader = (BPFileSubHeader *)page.data; //进行强制类型转换：
@@ -79,12 +80,16 @@ RC DiskBufferPool::create_file(const char *file_name)
     return RC::IOERR_SEEK;
   }
   // ssize_t write(int filedes, const void *buf, size_t nbytes); buf为写入的内容，nbytes为写入的长度
-  // 这里写page的内容是吧BPFileSubHeader中的内容写入文件，相当于落盘
+  // 这里写page的内容是吧BPFileSubHeader中的内容写入文件，相当于落盘,
+  // 这里也会将page_num 写入磁盘，所以之后load_data的page_num是读出来的，
+  // page_num 被默认初始化为0，所以不需要再特别的初始化page_num，所以直接写入磁盘即可
   if (write(fd, (char *)&page, sizeof(Page)) != sizeof(Page)) {
     LOG_ERROR("Failed to write header to file %s, due to %s.", file_name, strerror(errno));
     close(fd);
     return RC::IOERR_WRITE;
   }
+  int a=page.page_num;
+  std::cout<<a<<std::endl;
   close(fd);
   LOG_INFO("Successfully create %s.", file_name);
   return RC::SUCCESS;
@@ -145,6 +150,7 @@ RC DiskBufferPool::open_file(const char *file_name, int *file_id)
 
   // 为文件分配好在内存中frame的位置
   if ((tmp = allocate_block(&file_handle->hdr_frame)) != RC::SUCCESS) {
+      // 创建了file_handle 这个BPFileHandle 时就为其中hdr_frame成员变量有了空间，allocate应该是要将头部进行对应
     LOG_ERROR("Failed to allocate block for %s's BPFileHandle.", file_name);
     delete file_handle;
     close(fd);
@@ -182,7 +188,10 @@ RC DiskBufferPool::close_file(int file_id)
   }
 
   BPFileHandle *file_handle = open_list_[file_id];
+  // 因为将所有打开文件的header frame都放在了内存中，即在open_file函数中将header Frame pin住了，
+  // 所以需要将header Frame的pin_count-- ；从而可以释放这个文件在内存中占用的所有内存，否则header_Frame还会占用内存
   file_handle->hdr_frame->pin_count--;
+  // 这里应该是释放所有这个文件在内存中的frame
   if ((tmp = force_all_pages(file_handle)) != RC::SUCCESS) {
     file_handle->hdr_frame->pin_count++;
     LOG_ERROR("Failed to closeFile %d:%s, due to failed to force all pages.", file_id, file_handle->file_name);
@@ -193,6 +202,10 @@ RC DiskBufferPool::close_file(int file_id)
     LOG_ERROR("Failed to close fileId:%d, fileName:%s, error:%s", file_id, file_handle->file_name, strerror(errno));
     return RC::IOERR_CLOSE;
   }
+
+  // 这里open_list_对应位置必须设置为nullptr
+  // 是因为在打开文件时是将open_list_遍历，找到最后一位在后面继续添加。
+  // 不能向BPManger中的Frame按照allocated是否为空直接覆盖，所以必须将他重置为nullptr
   open_list_[file_id] = nullptr;
   delete (file_handle);
   LOG_INFO("Successfully close file %d:%s.", file_id, file_handle->file_name);
@@ -228,6 +241,9 @@ RC DiskBufferPool::delete_file(const char *file_name){
 
 RC DiskBufferPool::get_this_page(int file_id, PageNum page_num, BPPageHandle *page_handle)
 {
+    // file_id就是在disk_buffer_pool中open_list_记录的这个文件的index
+
+    // 检查所要取的文件file_id和所要取的页page_num是否存在
   RC tmp;
   if ((tmp = check_file_id(file_id)) != RC::SUCCESS) {
     LOG_ERROR("Failed to load page %d, due to invalid fileId %d", page_num, file_id);
@@ -240,6 +256,7 @@ RC DiskBufferPool::get_this_page(int file_id, PageNum page_num, BPPageHandle *pa
     return tmp;
   }
 
+  // 如果这个page已经加载到内存了了，找到打开的frame，记录在page_handle中
   for (int i = 0; i < BP_BUFFER_SIZE; i++) {
     if (!bp_manager_.allocated[i])
       continue;
@@ -256,6 +273,7 @@ RC DiskBufferPool::get_this_page(int file_id, PageNum page_num, BPPageHandle *pa
     }
   }
 
+  // 如果这个page没有被加载到内存，就将其加载到内存（allocate_block+load_page)
   // Allocate one page and load the data into this page
   if ((tmp = allocate_block(&(page_handle->frame))) != RC::SUCCESS) {
     LOG_ERROR("Failed to load page %s:%d, due to failed to alloc page.", file_handle->file_name, page_num);
@@ -276,6 +294,11 @@ RC DiskBufferPool::get_this_page(int file_id, PageNum page_num, BPPageHandle *pa
   return RC::SUCCESS;
 }
 
+/**
+* 在指定文件中分配一个新的页面，并将其放入缓冲区，返回页面句柄指针。
+* 分配页面时，如果文件中有空闲页，就直接分配一个空闲页；
+* 如果文件中没有空闲页，则扩展文件规模来增加新的空闲页。
+*/
 RC DiskBufferPool::allocate_page(int file_id, BPPageHandle *page_handle)
 {
   RC tmp;
@@ -286,10 +309,12 @@ RC DiskBufferPool::allocate_page(int file_id, BPPageHandle *page_handle)
 
   BPFileHandle *file_handle = open_list_[file_id];
 
+  // 如果当前还有空闲页，就直接用这个空闲页
   int byte = 0, bit = 0;
   if ((file_handle->file_sub_header->allocated_pages) < (file_handle->file_sub_header->page_count)) {
     // There is one free page
     for (int i = 0; i < file_handle->file_sub_header->page_count; i++) {
+        // 为什么这里要用byte 和bit
       byte = i / 8;
       bit = i % 8;
       if (((file_handle->bitmap[byte]) & (1 << bit)) == 0) {
@@ -398,6 +423,9 @@ RC DiskBufferPool::dispose_page(int file_id, PageNum page_num)
   file_handle->hdr_frame->dirty = true;
   file_handle->file_sub_header->allocated_pages--;
   // file_handle->pFileSubHeader->pageCount--;
+  // 不进行page_count--是因为这样之后如果再利用这个page，
+  // 那么可以直接利用之前他载入内存的frame，直接重新为他allocate_block并且向其写入即可，
+  // 不需要再构造Frame，
   char tmp = 1 << (page_num % 8);
   file_handle->bitmap[page_num / 8] &= ~tmp;
   return RC::SUCCESS;
@@ -464,9 +492,14 @@ RC DiskBufferPool::flush_all_pages(int file_id)
   return force_all_pages(file_handle);
 }
 
+
+// 释放这个file_handle 对应file，当前他在内存中使用的所有frame
 RC DiskBufferPool::force_all_pages(BPFileHandle *file_handle)
 {
-
+// 传入参数file_handle是为了获得每个打开文件特定的file_descripter，
+// 利用这个file_descripter 找到在BPManager Frame中所有此file_descripter对应的frame释放
+// 既然只是需要一个file_descripter，为什么不直接传入一个file_descripter 而是要传入一个file_handle呢？
+// 因为还需要在日志记录报错信息中输出file_name，所以用一个file_handle更方便
   for (int i = 0; i < BP_BUFFER_SIZE; i++) {
     if (!bp_manager_.allocated[i])
       continue;
@@ -481,16 +514,26 @@ RC DiskBufferPool::force_all_pages(BPFileHandle *file_handle)
         return rc;
       }
     }
+    // 这里只需要将BPManager的allocated对应位置进行更新而不需要将BPManger的Frame对应位置进行更新
+    // 是因为Frame只是指针数组，是可以继续被覆盖的。所以当allocated对应位置置为false，
+    // 那么当有下一个Frame需要使用这个位置的时候可以直接写入将原来旧的内容覆盖，所以不需要 Frame[i]=nullptr;
     bp_manager_.allocated[i] = false;
   }
   return RC::SUCCESS;
 }
 
+/*
+ * flush_block函数就是load_page函数的反面，
+ * load_page是从文件往frame中读
+ * flush_block就是将frame中的内容写入磁盘
+ * */
 RC DiskBufferPool::flush_block(Frame *frame)
 {
   // The better way is use mmap the block into memory,
   // so it is easier to flush data to file.
 
+  // 找到文件的写入位置
+  // ? 这里page_num 为什么不用减1呢？原因是在create_file中默认初始化page_num是从0开始的，所以不用-1
   s64_t offset = ((s64_t)frame->page.page_num) * sizeof(Page);
   if (lseek(frame->file_desc, offset, SEEK_SET) == offset - 1) {
     LOG_ERROR("Failed to flush page %lld of %d due to failed to seek %s.", offset, frame->file_desc, strerror(errno));
@@ -511,22 +554,27 @@ RC DiskBufferPool::allocate_block(Frame **buffer)
 {
 
   // There is one Frame which is free.
+  // 这一段是如果当前buffer还没有满，那么找到一个空的frame就把它给'参数buffer'用
+  // 将其allocated
   for (int i = 0; i < BP_BUFFER_SIZE; i++) {
     if (!bp_manager_.allocated[i]) {
       bp_manager_.allocated[i] = true;
-      *buffer = bp_manager_.frame + i;
+      *buffer = bp_manager_.frame + i;  // *buffer:Frame*
       LOG_DEBUG("Allocate block frame=%p", bp_manager_.frame + i);
       return RC::SUCCESS;
     }
   }
 
+  // 如果现在buffer已经满了，那么需要用LRU原则来找到一个frame来进行替换
+  // 下面就是要找一个最早被加入到buffer中的frame，也就是这个frame的acc_time最小
   int min = 0;
   unsigned long mintime = 0;
   bool flag = false;
   for (int i = 0; i < BP_BUFFER_SIZE; i++) {
-    if (bp_manager_.frame[i].pin_count != 0)
+    if (bp_manager_.frame[i].pin_count != 0) // 如果一个frame的pin_count被赋值，说明不能动这个frame
       continue;
-    if (!flag) {
+    if (!flag) { // 如果这是第一个没有被pin的frame，之前还没有更新过mintime；
+        // 这里不用i=0来判断是因为可能i=0的frame被pin了
       flag = true;
       min = i;
       mintime = bp_manager_.frame[i].acc_time;
@@ -541,6 +589,7 @@ RC DiskBufferPool::allocate_block(Frame **buffer)
     return RC::NOMEM;
   }
 //replace
+  // 找到了用于替换的frame，将脏页刷盘
   if (bp_manager_.frame[min].dirty) {
     RC rc = flush_block(&(bp_manager_.frame[min]));
     if (rc != RC::SUCCESS) {
@@ -548,6 +597,7 @@ RC DiskBufferPool::allocate_block(Frame **buffer)
       return rc;
     }
   }
+  // 指针+int：加一个对应类型的长度 如char指针+1 就是加1字节；int指针+1就是加4字节
   *buffer = bp_manager_.frame + min;
   return RC::SUCCESS;
 }
@@ -617,6 +667,9 @@ RC DiskBufferPool::load_page(PageNum page_num, BPFileHandle *file_handle, Frame 
 
     return RC::IOERR_SEEK;
   }
+  // ssize_t read(int filedes, void *buf, size_t nbytes);
+  // 从file_desc开始读sizeof(Page)的大小，读入&(frame->page);
+  // 因为page_num在创建文件时也写入了，所以在load的时候直接读出来，就包括了page_num和page.data
   if (read(file_handle->file_desc, &(frame->page), sizeof(Page)) != sizeof(Page)) {
     LOG_ERROR(
         "Failed to load page %s:%d, due to failed to read data:%s.", file_handle->file_name, page_num, strerror(errno));

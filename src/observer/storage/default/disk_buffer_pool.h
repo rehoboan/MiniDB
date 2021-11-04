@@ -43,8 +43,8 @@ typedef struct {
 // sizeof(Page) should be equal to BP_PAGE_SIZE
 
 typedef struct {
-  PageNum page_count;
-  int allocated_pages;
+  PageNum page_count; // page_count没有--的时候
+  int allocated_pages; // 用来记录已经用了的页
 } BPFileSubHeader;
 
 typedef struct {
