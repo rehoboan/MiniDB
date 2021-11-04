@@ -23,6 +23,7 @@ RC parse(char *st, Query *sqln);
 extern "C" {
 #endif // __cplusplus
 void relation_attr_init(RelAttr *relation_attr, const char *relation_name, const char *attribute_name) {
+  relation_attr->agg_name = nullptr;
   if (relation_name != nullptr) {
     relation_attr->relation_name = strdup(relation_name);
   } else {
@@ -33,8 +34,9 @@ void relation_attr_init(RelAttr *relation_attr, const char *relation_name, const
 
 void relation_attr_with_agg_init(RelAttr *relation_attr, const char *agg_name, 
                                 const char *relation_name, const char *attribute_name) {
-  relation_attr->agg_name = strdup(agg_name);
   relation_attr_init(relation_attr, relation_name, attribute_name);
+  if(agg_name != nullptr)
+      relation_attr->agg_name = strdup(agg_name);
 }
 
 void relation_attr_destroy(RelAttr *relation_attr) {

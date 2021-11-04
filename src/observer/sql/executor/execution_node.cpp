@@ -241,6 +241,7 @@ RC AggregationExeNode::execute(Tuple &tuple, std::vector<const char *> &agg_colu
   }
   //执行聚合操作  对每一个元组为单位进行操作
   const std::vector<Tuple> &tuples = table_->tuples();
+  bool is_init = false;
   for(const Tuple &tuple : tuples) {
     for(int i=0; i<agg_infos_.size(); i++) {
       std::pair<const char *, AggInfo> pair = agg_infos_[i];
@@ -249,30 +250,64 @@ RC AggregationExeNode::execute(Tuple &tuple, std::vector<const char *> &agg_colu
       int idx = map[agg_column_name];
       if(idx == -1) {
         //count in full column
-        count(res[i]);
+        rc  = count(res[i]);
       } else {
         //get tuple value
         const TupleValue &tuple_value = tuple.get(idx);
-        int type = tuple_value.get_type();
         switch(type){
           case COUNTS:
-            count(res[i]);
+            rc = count(res[i]);
+          break;
           case MAXS:
-            max(tuple_value, res[i]);
+            rc = max(tuple_value, res[i], is_init);
+          break;
           case MINS:
-            min(tuple_value, res[i]);
+            rc = min(tuple_value, res[i], is_init);
+          break;
           case AVGS: {
             avg_count[agg_column_name] += 1;
-            avg(tuple_value, res[i], avg_count[agg_column_name]);
+            rc = avg(tuple_value, res[i], avg_count[agg_column_name], is_init);
+          break;
           }
           default:
             rc = RC::MISUSE;
+          break;
         }
       }
     }
+    if(!is_init) is_init = true;
   }
 
-  //todo 结果加入到tuple中
+  if(rc != RC::SUCCESS)
+    return rc;
+
+  // 以tuple的形式组织聚合结果
+
+  for(int i=0; i < agg_infos_.size(); i++) {
+    AggValue agg_value = res[i];
+    const char * agg_column_name = agg_infos_[i].first;
+    agg_columns.push_back(agg_column_name);
+
+    switch(agg_value.value_idx) {
+      case 1:{
+        tuple.add(agg_value.values.int_value);
+      }
+      break;
+      case 2: {
+        tuple.add(agg_value.values.float_value);
+      }
+      break;
+      case 3: {
+        tuple.add(agg_value.values.string_value, 
+                strlen(agg_value.values.string_value));
+      }
+      break;
+
+      default:
+      break;
+    }
+    
+  }
   return rc;
 }
 
@@ -295,23 +330,35 @@ RC AggregationExeNode::init_index_map(std::unordered_map<const char *, int> &map
   return RC::SUCCESS; 
 }
 //todo 考虑date
-RC AggregationExeNode::max(const TupleValue &value, AggValue &res) {
+RC AggregationExeNode::max(const TupleValue &value, AggValue &res, bool is_init) {
   int type = value.get_type();
 
   switch(type){
     case INTS:{
       int value_int = *(int *)value.get_value();
-      res.values.int_value = std::max(res.values.int_value, value_int);  
+      if(is_init) {
+        res.values.int_value = std::max(res.values.int_value, value_int);  
+      } else {
+        res.values.int_value = value_int;
+      }
     }
     break;
     case FLOATS:{
       float value_float = *(float *)value.get_value();
-      res.values.float_value = std::max(res.values.float_value, value_float);
+      if(is_init) {
+        res.values.float_value = std::max(res.values.float_value, value_float);
+      } else {
+        res.values.float_value = value_float;
+      }
     }
     break;
     case CHARS:{
       const char * value_char = ((std::string *)value.get_value())->c_str();
-      if(strcmp(value_char, res.values.string_value) > 0) {
+      if(is_init){
+        if(strcmp(value_char, res.values.string_value) > 0) {
+          res.values.string_value = value_char;
+        }
+      }else {
         res.values.string_value = value_char;
       }
     }
@@ -321,31 +368,44 @@ RC AggregationExeNode::max(const TupleValue &value, AggValue &res) {
     }
     break;
     default:
-    return RC::MISUSE;
+      return RC::MISUSE;
   }
   return RC::SUCCESS;
 }
 
 
-RC AggregationExeNode::min(const TupleValue &value, AggValue &res) {
+RC AggregationExeNode::min(const TupleValue &value, AggValue &res, bool is_init) {
   int type = value.get_type();
 
   switch(type){
     case INTS:{
       int value_int = *(int *)value.get_value();
-      res.values.int_value = std::min(res.values.int_value, value_int);  
+      if(is_init) {
+        res.values.int_value = std::min(res.values.int_value, value_int);          
+      } else {
+        res.values.int_value = value_int;
+      }
     }
     break;
     case FLOATS:{
       float value_float = *(float *)value.get_value();
-      res.values.float_value = std::min(res.values.float_value, value_float);
+      if(is_init) {
+        res.values.float_value = std::min(res.values.float_value, value_float);        
+      } else {
+        res.values.float_value = value_float;
+      }
     }
     break;
     case CHARS:{
       const char * value_char = ((std::string *)value.get_value())->c_str();
-      if(strcmp(value_char, res.values.string_value) < 0) {
+      if(is_init) {
+        if(strcmp(value_char, res.values.string_value) < 0) {
+          res.values.string_value = value_char;
+        }        
+      } else {
         res.values.string_value = value_char;
       }
+
     }
     break;
     case DATES:{
@@ -363,19 +423,27 @@ RC AggregationExeNode::count(AggValue &res) {
   return RC::SUCCESS;
 }
 
-RC AggregationExeNode::avg(const TupleValue &value, AggValue &res, int size){
+RC AggregationExeNode::avg(const TupleValue &value, AggValue &res, int size, bool is_init){
   int type = value.get_type();
   
   switch(type){
     case INTS:{
       int value_int = *(int *)value.get_value();
-      res.values.float_value = (res.values.float_value * (size - 1) + value_int) / size;
+      if(is_init) {
+        res.values.float_value = (res.values.float_value * (size - 1) + value_int) / size;
+      } else {
+        res.values.float_value = (float)value_int;
+      }
     }
     break;
 
     case FLOATS:{
       int value_float = *(float  *)value.get_value();
-      res.values.float_value = (res.values.float_value * (size -1) + value_float) / size;
+      if(is_init){
+        res.values.float_value = (res.values.float_value * (size -1) + value_float) / size;
+      } else {
+        res.values.float_value = value_float;
+      }
     }
     break;
 

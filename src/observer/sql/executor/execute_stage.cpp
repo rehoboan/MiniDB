@@ -384,13 +384,13 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
   //处理带星号的查询,不支持多个属性和*同时出现
   if(selects.attr_num == 1 && strcmp(selects.attributes[0].attribute_name, "*") == 0 &&
       selects.attributes[0].agg_name == nullptr) {
+    is_multi_table = !(selects.relation_num==1);
     create_select_columns_with_star(db, selects, select_columns);
   } else {
-    for(int i = 0; i < selects.attr_num; i++) {
+    for(int i = selects.attr_num - 1; i >= 0; i--) {
       const char *attr_name = selects.attributes[i].attribute_name;
       const char *relation_name = selects.attributes[i].relation_name;
       const char *agg_name = selects.attributes[i].agg_name;
-
       //如果显示查询多张表但是选择的属性列没有表名前缀，说明元数据校验有问题。
       if(relation_name == nullptr && selects.relation_num!=1 && agg_name==nullptr) {
           LOG_ERROR("No tablename prefix when operating multi table selection");
@@ -403,6 +403,7 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
       if(agg_name == nullptr)
         select_columns.emplace_back(relation_name, attr_name); 
       else {//如果是聚集函数列，构造聚集列名（判断是否是单表查询），初始化aggregation信息，加入到agg infos中
+        std::cout<<"agg op type"<<agg_name<<std::endl;
         bool display_table = !(selects.relation_num==1);
         const char *agg_column_name = create_agg_columns_name(relation_name, attr_name, agg_name, display_table);
         AggInfo agg_info;
@@ -410,57 +411,53 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
         agg_infos.emplace_back(agg_column_name, agg_info);
       }
     }
-    //初始化并执行聚集操作
-    bool is_agg = false;
-    std::stringstream ss;
-    if(select_columns.size()>0 && agg_infos.size()>0) {
-      rc = RC::SQL_SYNTAX;
-      char err[256];
-      sprintf("aggregation function and column selection conflict", err);
-      LOG_WARN("aggregation function and column selection conflict");
-      session_event->set_response(err);
-      return rc;
-    } else if(agg_infos.size()>0) {
-      is_agg = true;
-    }
-    if(!is_agg) {
-      res_table.print(ss, select_columns, is_multi_table);
-    } else {
-      AggregationExeNode agg_node;
-      rc = create_aggregation_executor(trx, res_table, agg_infos, agg_node, session_event);
-      //agg_node.init(trx, &res_table, agg_infos);
-      if(rc != RC::SUCCESS) {
-        end_trx_if_need(session, trx, false);
-        return rc;
-      }
-      Tuple agg_res;
-      std::vector<const char *> agg_columns;
-      rc = agg_node.execute(agg_res, agg_columns);
-      if(rc != RC::SUCCESS) {
-        end_trx_if_need(session, trx, false);
-        return rc;
-      }
-      //print aggregation selection columns
-      for(int i=0; i<agg_columns.size()-1; i++) {
-        ss<<agg_columns[i] << " | " <<std::endl;
-      }
-      ss<<agg_columns.back()<<std::endl;
-
-      //print data
-      const std::vector<std::shared_ptr<TupleValue>> &values = agg_res.values();
-      for(int i=0; i<agg_res.size()-1; i++) {
-        values[i]->to_string(ss);
-        ss<<" | "<<std::endl;
-      }
-      values.back()->to_string(ss);
-      ss<<std::endl;
-    }
   }
-
-  //print the selection columns
+    //初始化并执行聚集操作
+  bool is_agg = false;
   std::stringstream ss;
-  if(select_columns.size()>0)
+  if(select_columns.size()>0 && agg_infos.size()>0) {
+    rc = RC::SQL_SYNTAX;
+    char err[256];
+    sprintf("aggregation function and column selection conflict", err);
+    LOG_WARN("aggregation function and column selection conflict");
+    session_event->set_response(err);
+    return rc;
+  } else if(agg_infos.size()>0) {
+    is_agg = true;
+  }
+  if(!is_agg) {
+    std::cout<<"here"<<std::endl;
     res_table.print(ss, select_columns, is_multi_table);
+  } else {
+    AggregationExeNode agg_node;
+    rc = create_aggregation_executor(trx, res_table, agg_infos, agg_node, session_event);
+    //agg_node.init(trx, &res_table, agg_infos);
+    if(rc != RC::SUCCESS) {
+      end_trx_if_need(session, trx, false);
+      return rc;
+    }
+    Tuple agg_res;
+    std::vector<const char *> agg_columns;
+    rc = agg_node.execute(agg_res, agg_columns);
+    if(rc != RC::SUCCESS) {
+      end_trx_if_need(session, trx, false);
+      return rc;
+    }
+    //print aggregation selection columns
+    for(int i=0; i<agg_columns.size()-1; i++) {
+      ss<<agg_columns[i] << " | " <<std::endl;
+    }
+    ss<<agg_columns.back()<<std::endl;
+
+    //print data
+    const std::vector<std::shared_ptr<TupleValue>> &values = agg_res.values();
+    for(int i=0; i<agg_res.size()-1; i++) {
+      values[i]->to_string(ss);
+      ss<<" | "<<std::endl;
+    }
+    values.back()->to_string(ss);
+    ss<<std::endl;
+  }
 
   
   session_event->set_response(ss.str());
@@ -597,7 +594,7 @@ const char* create_agg_columns_name(const char *table_name, const char *attr_nam
     table_name_len = strlen(table_name);
   //判断是否需要加上table前缀
   char* res_part1 = new char(table_name_len + 1 + strlen(attr_name));
-  if(table_name_len && (display_table || strcmp(attr_name, "*")!=0)) {
+  if(table_name_len && (display_table && strcmp(attr_name, "*")!=0)) {
     strncpy(res_part1, table_name, table_name_len);
     strcat(res_part1, ".");
     strcat(res_part1, attr_name);
@@ -801,7 +798,7 @@ void init_aggregation(const char *table_name, const char *attr_name, const char 
   } else if(strcmp(agg_name, "AVG")==0) {
     agg_info.type = AggType::AVGS;
   } else {
-    LOG_ERROR("type missing");
+    LOG_ERROR("here, type missing");
   }
 }
 
