@@ -289,15 +289,15 @@ RC AggregationExeNode::execute(Tuple &tuple, std::vector<const char *> &agg_colu
     agg_columns.push_back(agg_column_name);
 
     switch(agg_value.value_idx) {
-      case 1:{
+      case 1:{ //int
         tuple.add(agg_value.values.int_value);
       }
       break;
-      case 2: {
+      case 2: { //float
         tuple.add(agg_value.values.float_value);
       }
       break;
-      case 3: {
+      case 3: { //string
         tuple.add(agg_value.values.string_value, 
                 strlen(agg_value.values.string_value));
       }
