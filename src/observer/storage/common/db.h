@@ -21,34 +21,34 @@ See the Mulan PSL v2 for more details. */
 
 #include "rc.h"
 #include "sql/parser/parse_defs.h"
-
+#include "storage/common/record_manager.h"
 class Table;
-
+extern Table * sys_tbs;
 class Db {
 public:
-  Db() = default;
-  ~Db();
+    Db() = default;
+    ~Db();
 
-  RC init(const char *name, const char *dbpath);
+    RC init(const char *name, const char *dbpath);
 
-  RC create_table(const char *table_name, int attribute_count, const AttrInfo *attributes);
+    RC create_table(const char *table_name, int attribute_count, const AttrInfo *attributes);
 
-  RC drop_table(const char *table_name);
-  
-  Table *find_table(const char *table_name) const;
+    RC drop_table(const char *table_name);
 
-  const char *name() const;
+    Table *find_table(const char *table_name) const;
 
-  void all_tables(std::vector<std::string> &table_names) const;
+    const char *name() const;
 
-  RC sync();
+    void all_tables(std::vector<std::string> &table_names) const;
+
+    RC sync();
 private:
-  RC open_all_tables();
+    RC open_all_tables();
 
 private:
-  std::string   name_;
-  std::string   path_;
-  std::unordered_map<std::string, Table *>  opened_tables_;
+    std::string   name_;
+    std::string   path_;
+    std::unordered_map<std::string, Table *>  opened_tables_;
 };
 
 #endif // __OBSERVER_STORAGE_COMMON_DB_H__

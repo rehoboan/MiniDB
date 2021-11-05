@@ -11,7 +11,8 @@ See the Mulan PSL v2 for more details. */
 //
 // Created by Wangyunlai on 2021/5/14.
 //
-
+#include <storage/common/record_manager.h>
+#include "storage/common/db.h"
 #include "sql/executor/tuple.h"
 #include "storage/common/table.h"
 #include "common/log/log.h"
@@ -52,8 +53,16 @@ void Tuple::add(float value) {
   add(new FloatValue(value));
 }
 
+void Tuple::add(){
+  add(new StringValue());
+}
+
 void Tuple::add(const char *s, int len) {
   add(new StringValue(s, len));
+}
+
+void Tuple::add(time_t value){
+  add(new DateValue(value));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -63,23 +72,23 @@ std::string TupleField::to_string() const {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void TupleSchema::from_table(const Table *table, TupleSchema &schema) {
+void TupleSchema::from_table(Table *table, TupleSchema &schema) {
   const char *table_name = table->name();
-  const TableMeta &table_meta = table->table_meta();
+  TableMeta &table_meta = table->table_meta();
   const int field_num = table_meta.field_num();
   for (int i = 0; i < field_num; i++) {
-    const FieldMeta *field_meta = table_meta.field(i);
+    FieldMeta *field_meta = table_meta.field(i);
     if (field_meta->visible()) {
-      schema.add(field_meta->type(), table_name, field_meta->name());
+      schema.add(TYPE(field_meta->type()), table_name, field_meta->name());
     }
   }
 }
 
-void TupleSchema::add(AttrType type, const char *table_name, const char *field_name) {
+void TupleSchema::add(int type, const char *table_name, const char *field_name) {
   fields_.emplace_back(type, table_name, field_name);
 }
 
-void TupleSchema::add_if_not_exists(AttrType type, const char *table_name, const char *field_name) {
+void TupleSchema::add_if_not_exists(int type, const char *table_name, const char *field_name) {
   for (const auto &field: fields_) {
     if (0 == strcmp(field.table_name(), table_name) &&
         0 == strcmp(field.field_name(), field_name)) {
@@ -173,7 +182,7 @@ void TupleSet::print(std::ostream &os) const {
   for (const Tuple &item : tuples_) {
     const std::vector<std::shared_ptr<TupleValue>> &values = item.values();
     for (std::vector<std::shared_ptr<TupleValue>>::const_iterator iter = values.begin(), end = --values.end();
-          iter != end; ++iter) {
+         iter != end; ++iter) {
       (*iter)->to_string(os);
       os << " | ";
     }
@@ -252,22 +261,38 @@ const std::vector<Tuple> &TupleSet::tuples() const {
 
 /////////////////////////////////////////////////////////////////////////////
 TupleRecordConverter::TupleRecordConverter(Table *table, TupleSet &tuple_set) :
-      table_(table), tuple_set_(tuple_set){
+        table_(table), tuple_set_(tuple_set){
 }
 
 void TupleRecordConverter::add_record(const char *record) {
   const TupleSchema &schema = tuple_set_.schema();
   Tuple tuple;
-  const TableMeta &table_meta = table_->table_meta();
-  for (const TupleField &field : schema.fields()) {
-    const FieldMeta *field_meta = table_meta.field(field.field_name());
-    assert(field_meta != nullptr);
-    switch (field_meta->type()) {
+  TableMeta &table_meta = table_->table_meta();
+  // null域的元信息
+  FieldMeta *null_field_meta = table_meta.field(TableMeta::null_field_name());//field信息
+  int null_v = *(int*)(record + null_field_meta->offset() );
+  // 行的null域值
+  for (const TupleField &field : schema.fields()) {//需要提取的列
+    FieldMeta *field_meta = table_meta.field(field.field_name());//field信息
+    // assert field_meta !=nullptr
+
+    int index = table_meta.getIndex(field.field_name()) - 2;
+    if(index == -1){
+      continue;//erro
+    }
+    if(null_v&(1<<index)){//空值
+      // 现在当做Cstring来处理
+      tuple.add();
+      continue;
+    }
+    int type = field_meta->type();
+    RID rid;
+    switch (TYPE(type)) {
       case INTS: {
         int value = *(int*)(record + field_meta->offset());
         tuple.add(value);
       }
-      break;
+        break;
       case FLOATS: {
         float value = *(float *)(record + field_meta->offset());
         tuple.add(value);
@@ -277,7 +302,21 @@ void TupleRecordConverter::add_record(const char *record) {
         const char *s = record + field_meta->offset();  // 现在当做Cstring来处理
         tuple.add(s, strlen(s));
       }
-      break;
+        break;
+      case DATES: {
+        const char *s = record + field_meta->offset();  // 现在当做Cstring来处理
+        std::shared_ptr<DateValue> p(new DateValue(s,strlen(s)));
+        tuple.add(p);
+      }
+        break;
+      case TEXTS: {
+
+        rid.page_num = *(int*)(record + field_meta->offset());
+        rid.slot_num = *(int*)(record + field_meta->offset()+4);
+        std::string ans = sys_tbs->getText(rid);
+        tuple.add(ans.c_str(), ans.length());
+      }
+        break;
       default: {
         LOG_PANIC("Unsupported field type. type=%d", field_meta->type());
       }

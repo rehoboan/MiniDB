@@ -67,9 +67,9 @@ Stage *DefaultStorageStage::make_stage(const std::string &tag) {
 //! Set properties for this object set in stage specific properties
 bool DefaultStorageStage::set_properties() {
   std::string stageNameStr(stage_name_);
-  std::map<std::string, std::string> section = 
-      get_properties()->get(stageNameStr);
-  
+  std::map<std::string, std::string> section =
+          get_properties()->get(stageNameStr);
+
   // 初始化时打开默认的database，没有的话会自动创建
   std::map<std::string, std::string>::iterator iter = section.find(CONF_BASE_DIR);
   if (iter == section.end()) {
@@ -78,7 +78,7 @@ bool DefaultStorageStage::set_properties() {
   }
 
   const char *base_dir = iter->second.c_str();
-  
+
   const char *sys_db = DEFAULT_SYSTEM_DB;
   iter = section.find(CONF_SYSTEM_DB);
   if (iter != section.end()) {
@@ -161,14 +161,14 @@ void DefaultStorageStage::handle_event(StageEvent *event) {
   char response[256];
   switch (sql->flag)
   {
-  case SCF_INSERT: { // insert into
+    case SCF_INSERT: { // insert into
       const Inserts &inserts = sql->sstr.insertion;
       const char *table_name = inserts.relation_name;
-      rc = handler_->insert_record(current_trx, current_db, table_name, inserts.value_num, inserts.values);
+      rc = handler_->insert_record(current_trx, current_db, table_name, inserts.value_num, inserts.values, inserts.row_num, inserts.row_end);
       snprintf(response, sizeof(response), "%s\n", rc == RC::SUCCESS ? "SUCCESS" : "FAILURE");
     }
-    break;
-  case SCF_UPDATE: {
+      break;
+    case SCF_UPDATE: {
       const Updates &updates = sql->sstr.update;
       const char *table_name = updates.relation_name;
       const char *field_name = updates.attribute_name;
@@ -177,31 +177,38 @@ void DefaultStorageStage::handle_event(StageEvent *event) {
                                    updates.condition_num, updates.conditions, &updated_count);
       snprintf(response, sizeof(response), "%s\n", rc == RC::SUCCESS ? "SUCCESS" : "FAILURE");
     }
-    break;
-  case SCF_DELETE: {
+      break;
+    case SCF_DELETE: {
       const Deletes &deletes = sql->sstr.deletion;
       const char *table_name = deletes.relation_name;
       int deleted_count = 0;
       rc = handler_->delete_record(current_trx, current_db, table_name, deletes.condition_num, deletes.conditions, &deleted_count);
       snprintf(response, sizeof(response), "%s\n", rc == RC::SUCCESS ? "SUCCESS" : "FAILURE");
     }
-    break;
-  case SCF_CREATE_TABLE: { // create table
+      break;
+    case SCF_CREATE_TABLE: { // create table
       const CreateTable &create_table = sql->sstr.create_table;
-      rc = handler_->create_table(current_db, create_table.relation_name, 
-              create_table.attribute_count, create_table.attributes);
+      rc = handler_->create_table(current_db, create_table.relation_name,
+                                  create_table.attribute_count, create_table.attributes);
       snprintf(response, sizeof(response), "%s\n", rc == RC::SUCCESS ? "SUCCESS" : "FAILURE");
     }
-    break;
-  case SCF_CREATE_INDEX: {
+      break;
+    case SCF_DROP_TABLE: {
+      const DropTable &drop_table = sql->sstr.drop_table;
+      const char *table_name = drop_table.relation_name;
+      rc = handler_->drop_table(current_db, table_name);
+      snprintf(response, sizeof(response), "%s\n", rc == RC::SUCCESS ? "SUCCESS" : "FAILURE");
+    }
+      break;
+    case SCF_CREATE_INDEX: {
       const CreateIndex &create_index = sql->sstr.create_index;
-      rc = handler_->create_index(current_trx, current_db, create_index.relation_name, 
-                                  create_index.index_name, create_index.attribute_name);
+      rc = handler_->create_index(current_trx, current_db, create_index.relation_name,
+                                  create_index.index_name, create_index.attribute_name,create_index.index_field_num,create_index.unique);
       snprintf(response, sizeof(response), "%s\n", rc == RC::SUCCESS ? "SUCCESS" : "FAILURE");
     }
-    break;
+      break;
 
-  case SCF_SHOW_TABLES: {
+    case SCF_SHOW_TABLES: {
       Db *db = handler_->find_db(current_db);
       if (nullptr == db) {
         snprintf(response, sizeof(response), "No such database: %s\n", current_db);
@@ -219,8 +226,8 @@ void DefaultStorageStage::handle_event(StageEvent *event) {
         }
       }
     }
-    break;
-  case SCF_DESC_TABLE: {
+      break;
+    case SCF_DESC_TABLE: {
       const char *table_name = sql->sstr.desc_table.relation_name;
       Table *table = handler_->find_table(current_db, table_name);
       std::stringstream ss;
@@ -231,14 +238,8 @@ void DefaultStorageStage::handle_event(StageEvent *event) {
       }
       snprintf(response, sizeof(response), "%s", ss.str().c_str());
     }
-    break;
-  case SCF_DROP_TABLE: {
-    const char *table_name = sql->sstr.drop_table.relation_name;
-    rc = handler_->drop_table(current_db, table_name);
-    snprintf(response, sizeof(response), "%s", rc == RC::SUCCESS ? "SUCCESS" : "FAILURE");
-    }
-    break;
-  case SCF_LOAD_DATA: {
+      break;
+    case SCF_LOAD_DATA: {
       /*
         从文件导入数据，如果做性能测试，需要保持这些代码可以正常工作
         load data infile `your/file/path` into table `table-name`;
@@ -248,15 +249,26 @@ void DefaultStorageStage::handle_event(StageEvent *event) {
       std::string result = load_data(current_db, table_name, file_name);
       snprintf(response, sizeof(response), "%s", result.c_str());
     }
-    break;
-  default:
+      break;
+    default:
       snprintf(response, sizeof(response), "Unsupported sql: %d\n", sql->flag);
       break;
   }
 
+//  if (rc == RC::SUCCESS && !session->is_trx_multi_operation_mode()) {
+//    rc = current_trx->commit();
+//    if (rc != RC::SUCCESS) {
+//      LOG_ERROR("Failed to commit trx. rc=%d:%s", rc, strrc(rc));
+//    }
+//  }
   if (rc == RC::SUCCESS && !session->is_trx_multi_operation_mode()) {
     rc = current_trx->commit();
     if (rc != RC::SUCCESS) {
+      LOG_ERROR("Failed to commit trx. rc=%d:%s", rc, strrc(rc));
+    }
+  }else if(rc != SUCCESS){
+    rc = current_trx->rollback();
+    if(rc != SUCCESS){
       LOG_ERROR("Failed to commit trx. rc=%d:%s", rc, strrc(rc));
     }
   }
@@ -268,7 +280,7 @@ void DefaultStorageStage::handle_event(StageEvent *event) {
 }
 
 void DefaultStorageStage::callback_event(StageEvent *event,
-                                        CallbackContext *context) {
+                                         CallbackContext *context) {
   LOG_TRACE("Enter\n");
   StorageEvent *storage_event = static_cast<StorageEvent *>(event);
   storage_event->exe_event()->done_immediate();
@@ -284,8 +296,8 @@ void DefaultStorageStage::callback_event(StageEvent *event,
  * @param errmsg 如果出现错误，通过这个参数返回错误信息
  * @return 成功返回RC::SUCCESS
  */
-RC insert_record_from_file(Table *table, std::vector<std::string> &file_values, 
-                std::vector<Value> &record_values, std::stringstream &errmsg) {
+RC insert_record_from_file(Table *table, std::vector<std::string> &file_values,
+                           std::vector<Value> &record_values, std::stringstream &errmsg) {
 
   const int field_num = record_values.size();
   const int sys_field_num = table->table_meta().sys_field_num();
@@ -298,8 +310,8 @@ RC insert_record_from_file(Table *table, std::vector<std::string> &file_values,
 
   std::stringstream deserialize_stream;
   for (int i = 0; i < field_num && RC::SUCCESS == rc; i++) {
-    const FieldMeta *field = table->table_meta().field(i + sys_field_num);
-    
+    FieldMeta *field = table->table_meta().field(i + sys_field_num);
+
     std::string &file_value = file_values[i];
     common::strip(file_value);
 
@@ -311,7 +323,7 @@ RC insert_record_from_file(Table *table, std::vector<std::string> &file_values,
         int int_value;
         deserialize_stream >> int_value;
         if (!deserialize_stream || !deserialize_stream.eof()) {
-          errmsg << "need an integer but got '" << file_values[i] 
+          errmsg << "need an integer but got '" << file_values[i]
                  << "' (field index:" << i << ")";
 
           rc = RC::SCHEMA_FIELD_TYPE_MISMATCH;
@@ -320,7 +332,7 @@ RC insert_record_from_file(Table *table, std::vector<std::string> &file_values,
         }
       }
 
-      break;
+        break;
       case FLOATS: {
         deserialize_stream.clear();
         deserialize_stream.str(file_value);
@@ -328,23 +340,23 @@ RC insert_record_from_file(Table *table, std::vector<std::string> &file_values,
         float float_value;
         deserialize_stream >> float_value;
         if (!deserialize_stream || !deserialize_stream.eof()) {
-          errmsg << "need a float number but got '" << file_values[i] 
-              << "'(field index:" << i << ")"; 
+          errmsg << "need a float number but got '" << file_values[i]
+                 << "'(field index:" << i << ")";
           rc = RC::SCHEMA_FIELD_TYPE_MISMATCH;
         } else {
           value_init_float(&record_values[i], float_value);
         }
       }
-      break;
+        break;
       case CHARS: {
         value_init_string(&record_values[i], file_value.c_str());
       }
-      break;
+        break;
       default: {
         errmsg << "Unsupported field type to loading: " << field->type();
         rc = RC::SCHEMA_FIELD_TYPE_MISMATCH;
       }
-      break;
+        break;
     }
   }
 
@@ -360,8 +372,8 @@ RC insert_record_from_file(Table *table, std::vector<std::string> &file_values,
   return rc;
 }
 
-std::string DefaultStorageStage::load_data(const char *db_name, 
-          const char *table_name, const char *file_name) {
+std::string DefaultStorageStage::load_data(const char *db_name,
+                                           const char *table_name, const char *file_name) {
 
   std::stringstream result_string;
   Table *table = handler_->find_table(db_name, table_name);
@@ -373,7 +385,7 @@ std::string DefaultStorageStage::load_data(const char *db_name,
   std::fstream fs;
   fs.open(file_name, std::ios_base::in | std::ios_base::binary);
   if (!fs.is_open()) {
-    result_string << "Failed to open file: " << file_name 
+    result_string << "Failed to open file: " << file_name
                   << ". system error=" << strerror(errno) << std::endl;
     return result_string.str();
   }
@@ -402,8 +414,8 @@ std::string DefaultStorageStage::load_data(const char *db_name,
     std::stringstream errmsg;
     rc = insert_record_from_file(table, file_values, record_values, errmsg);
     if (rc != RC::SUCCESS) {
-      result_string << "Line:" << line_num << " insert record failed:" 
-          << errmsg.str() << ". error:" << strrc(rc) << std::endl;
+      result_string << "Line:" << line_num << " insert record failed:"
+                    << errmsg.str() << ". error:" << strrc(rc) << std::endl;
     } else {
       insertion_count++;
     }
@@ -412,11 +424,11 @@ std::string DefaultStorageStage::load_data(const char *db_name,
 
   struct timespec end_time;
   clock_gettime(CLOCK_MONOTONIC, &end_time);
-  long cost_nano = (end_time.tv_sec - begin_time.tv_sec) * 1000000000L 
-                    + (end_time.tv_nsec - begin_time.tv_nsec);
+  long cost_nano = (end_time.tv_sec - begin_time.tv_sec) * 1000000000L
+                   + (end_time.tv_nsec - begin_time.tv_nsec);
   if (RC::SUCCESS == rc) {
-    result_string << strrc(rc) << ". total " << line_num << " line(s) handled and " 
-                  << insertion_count << " record(s) loaded, total cost " << cost_nano / 1000000000.0 
+    result_string << strrc(rc) << ". total " << line_num << " line(s) handled and "
+                  << insertion_count << " record(s) loaded, total cost " << cost_nano / 1000000000.0
                   << " second(s)" << std::endl;
   }
   return result_string.str();

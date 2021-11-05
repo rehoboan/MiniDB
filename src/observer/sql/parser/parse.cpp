@@ -46,6 +46,11 @@ void relation_attr_destroy(RelAttr *relation_attr) {
   relation_attr->attribute_name = nullptr;
 }
 
+void value_init_null(Value *value){
+    value->type = UNDEFINED | NULL_VALUE;
+    value->data = malloc(sizeof(int));
+}
+
 void value_init_integer(Value *value, int v) {
   value->type = INTS;
   value->data = malloc(sizeof(v));
@@ -60,6 +65,49 @@ void value_init_string(Value *value, const char *v) {
   value->type = CHARS;
   value->data = strdup(v);
 }
+
+void value_init_date(Value *value, const char *v) {
+
+    int days[12]={31,28,31,30,31,30,31,31,30,31,30,31};
+
+    value->type = DATES;
+    value->data = malloc(MAX_DATE_LEN + 1);
+
+    int year,month,day;
+    sscanf(v,"%d-%d-%d",&year,&month,&day);
+    bool valid_date = true;
+
+    if(day > days[month-1]){
+        valid_date = false;
+    }
+
+    if(month == 2 && day == 29) {
+        if ((year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)) {
+                valid_date = true;
+        }
+    }
+
+    if (!valid_date){
+        value->type = UNDEFINED;
+        return;
+    }
+
+    int i = 0;
+    char *record = (char*)value->data;
+    uint len = strlen(v);
+    for (int j = 0; j < len; ++j) {
+        if(v[j] == '-'){
+            record[i++] = v[j];
+            if ((j >= len - 2) || !(v[j+2] >= '0' && v[j+2] <= '9')){
+                record[i++] = '0';
+            }
+        }else{
+                record[i++] = v[j];
+        }
+        record[i] = '\0';
+    }
+}
+
 void value_destroy(Value *value) {
   value->type = UNDEFINED;
   free(value->data);
@@ -97,10 +145,26 @@ void condition_destroy(Condition *condition) {
   }
 }
 
-void attr_info_init(AttrInfo *attr_info, const char *name, AttrType type, size_t length) {
-  attr_info->name = strdup(name);
-  attr_info->type = type;
-  attr_info->length = length;
+void attr_info_init(AttrInfo *attr_info, const char *name, AttrType type, size_t length, bool nullable) {
+
+    attr_info->name = strdup(name);
+
+    if(nullable){
+        attr_info->type = type | NULL_VALUE;
+    }else{
+        attr_info->type = type;
+    }
+
+    if(type == DATES){
+        attr_info->length = MAX_DATE_LEN + 1;
+    }else if(type == CHARS){
+        attr_info->length = length + 1;
+    }else if(type == TEXTS){
+        attr_info->length = sizeof(int) * 2;
+    }else{
+        attr_info->length = length;
+    }
+
 }
 void attr_info_destroy(AttrInfo *attr_info) {
   free(attr_info->name);
@@ -141,14 +205,16 @@ void selects_destroy(Selects *selects) {
   selects->condition_num = 0;
 }
 
-void inserts_init(Inserts *inserts, const char *relation_name, Value values[], size_t value_num) {
-  assert(value_num <= sizeof(inserts->values)/sizeof(inserts->values[0]));
-
-  inserts->relation_name = strdup(relation_name);
-  for (size_t i = 0; i < value_num; i++) {
-    inserts->values[i] = values[i];
-  }
-  inserts->value_num = value_num;
+void inserts_init(Inserts *inserts, const char *relation_name, Value values[], size_t value_num, const int row_end[], size_t row_num) {
+    inserts->relation_name = strdup(relation_name);
+    for (int i = 0; i < value_num; i++) {
+        inserts->values[i] = values[i];
+    }
+    inserts->value_num = value_num;
+    for(int i = 0; i< row_num; i++) {
+        inserts->row_end[i] = row_end[i];
+    }
+    inserts->row_num = row_num;
 }
 void inserts_destroy(Inserts *inserts) {
   free(inserts->relation_name);
@@ -231,19 +297,25 @@ void drop_table_destroy(DropTable *drop_table) {
 }
 
 void create_index_init(CreateIndex *create_index, const char *index_name, 
-                       const char *relation_name, const char *attr_name) {
-  create_index->index_name = strdup(index_name);
-  create_index->relation_name = strdup(relation_name);
-  create_index->attribute_name = strdup(attr_name);
+                       const char *relation_name, const char *attr_name[], int len, char unique) {
+    create_index->index_name = strdup(index_name);
+    create_index->relation_name = strdup(relation_name);
+    for(int i = 0; i < len; i++){
+        create_index->attribute_name[i] = strdup(attr_name[i]);
+    }
+    create_index->index_field_num = len;
+    create_index->unique = unique;
 }
 void create_index_destroy(CreateIndex *create_index) {
-  free(create_index->index_name);
-  free(create_index->relation_name);
-  free(create_index->attribute_name);
+    free(create_index->index_name);
+    free(create_index->relation_name);
+    for(int i = 0;i < create_index->index_field_num; i++){
+        free(create_index->attribute_name[i]);
+        create_index->attribute_name[i] = nullptr;
+    }
 
-  create_index->index_name = nullptr;
-  create_index->relation_name = nullptr;
-  create_index->attribute_name = nullptr;
+    create_index->index_name = nullptr;
+    create_index->relation_name = nullptr;
 }
 
 void drop_index_init(DropIndex *drop_index, const char *index_name) {

@@ -27,11 +27,13 @@ const char *ATTR_TYPE_NAME[] = {
   "undefined",
   "chars",
   "ints",
-  "floats"
+  "floats",
+  "dates",
+  "texts"
 };
 
 const char *attr_type_to_string(AttrType type) {
-  if (type >= UNDEFINED && type <= FLOATS) {
+  if (type >= UNDEFINED && type <= TEXTS) {
     return ATTR_TYPE_NAME[type];
   }
   return "unknown";
@@ -49,7 +51,7 @@ AttrType attr_type_from_string(const char *s) {
 FieldMeta::FieldMeta() : attr_type_(AttrType::UNDEFINED), attr_offset_(-1), attr_len_(0), visible_(false) {
 }
 
-RC FieldMeta::init(const char *name, AttrType attr_type, int attr_offset, int attr_len, bool visible) {
+RC FieldMeta::init(const char *name, int attr_type, int attr_offset, int attr_len, bool visible) {
   if (nullptr == name || '\0' == name[0]) {
     LOG_WARN("Name cannot be empty");
     return RC::INVALID_ARGUMENT;
@@ -75,7 +77,7 @@ const char *FieldMeta::name() const {
   return name_.c_str();
 }
 
-AttrType FieldMeta::type() const {
+int FieldMeta::type() const {
   return attr_type_;
 }
 
@@ -93,14 +95,14 @@ bool FieldMeta::visible() const {
 
 void FieldMeta::desc(std::ostream &os) const {
   os << "field name=" << name_
-     << ", type=" << attr_type_to_string(attr_type_)
+     << ", type=" << attr_type_to_string(static_cast<AttrType>(attr_type_))
      << ", len=" << attr_len_
      << ", visible=" << (visible_ ? "yes" : "no");
 }
 
 void FieldMeta::to_json(Json::Value &json_value) const {
   json_value[FIELD_NAME] = name_;
-  json_value[FIELD_TYPE] = attr_type_to_string(attr_type_);
+  json_value[FIELD_TYPE] = attr_type_to_string(static_cast<AttrType>(attr_type_));
   json_value[FIELD_OFFSET] = attr_offset_;
   json_value[FIELD_LEN]  = attr_len_;
   json_value[FIELD_VISIBLE] = visible_;

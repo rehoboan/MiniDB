@@ -38,7 +38,9 @@ public:
   void add(const std::shared_ptr<TupleValue> &other);
   void add(int value);
   void add(float value);
+  void add();
   void add(const char *s, int len);
+  void add(time_t value);
 
   const std::vector<std::shared_ptr<TupleValue>> &values() const {
     return values_;
@@ -62,11 +64,11 @@ private:
 
 class TupleField {
 public:
-  TupleField(AttrType type, const char *table_name, const char *field_name) :
+  TupleField(int type, const char *table_name, const char *field_name) :
           type_(type), table_name_(table_name), field_name_(field_name){
   }
 
-  AttrType  type() const{
+  int type() const{
     return type_;
   }
 
@@ -79,7 +81,7 @@ public:
 
   std::string to_string() const;
 private:
-  AttrType  type_;
+  int  type_;
   std::string table_name_;
   std::string field_name_;
 };
@@ -89,8 +91,9 @@ public:
   TupleSchema() = default;
   ~TupleSchema() = default;
 
-  void add(AttrType type, const char *table_name, const char *field_name);
-  void add_if_not_exists(AttrType type, const char *table_name, const char *field_name);
+  void add(int type, const char *table_name, const char *field_name);
+//  void add_if_not_exists(AttrType type, const char *table_name, const char *field_name);
+  void add_if_not_exists(int type, const char *table_name, const char *field_name);
   // void merge(const TupleSchema &other);
   void append(const TupleSchema &other);
 
@@ -109,9 +112,11 @@ public:
 
   void print(std::ostream &os) const;
 public:
-  static void from_table(const Table *table, TupleSchema &schema);
+  static void from_table(Table *table, TupleSchema &schema);
 private:
   std::vector<TupleField> fields_;
+
+
 };
 
 class TupleSet {
@@ -157,5 +162,6 @@ private:
   Table *table_;
   TupleSet &tuple_set_;
 };
+
 
 #endif //__OBSERVER_SQL_EXECUTOR_TUPLE_H_

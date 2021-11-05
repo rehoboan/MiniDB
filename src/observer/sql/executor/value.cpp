@@ -9,8 +9,13 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 #include "sql/executor/value.h"
 
+
+void IntValue::to_string(std::ostream &os) const{
+    os << value_;
+}
 void IntValue::set_value(int value){
     value_ = value;
+    is_null_ = false;
 }
 
 const void *IntValue::get_value() const{
@@ -18,25 +23,57 @@ const void *IntValue::get_value() const{
     return value;
 }
 
-AttrType IntValue::get_type() const {
+int IntValue::get_type() const {
     return type_;
+}
+
+int IntValue::compare(const TupleValue &other) const {
+    if(is_null_){
+        return -1;
+    }
+    return compare_data(type_, (char *)get_value(), other.get_type(), (char *)(other.get_value()));
+}
+
+bool IntValue::is_null() const {
+    return is_null_;
+}
+
+void FloatValue::to_string(std::ostream &os) const {
+    os << value_;
 }
 
 void FloatValue::set_value(float value){
     value_ = value;
+    is_null_ = false;
 }
 
-const void *FloatValue::get_value() const{
+const void *FloatValue::get_value() const {
+
     const float *value = &value_;
     return value;
 }
 
-AttrType FloatValue::get_type() const {
+
+int FloatValue::get_type() const {
     return type_;
 }
 
-void StringValue::set_value(std::string &value) {
+int FloatValue::compare(const TupleValue &other) const  {
+    return compare_data(type_, (char *)get_value(), other.get_type(), (char *)(other.get_value()));
+}
+
+bool FloatValue::is_null() const {
+    return is_null_;
+}
+
+void StringValue::to_string(std::ostream &os) const {
+    os << value_;
+}
+
+void StringValue::set_value(std::string &value){
     value_.assign(value);
+    is_null_ = false;
+
 }
 
 const void *StringValue::get_value() const {
@@ -44,9 +81,23 @@ const void *StringValue::get_value() const {
     return value;
 }
 
-AttrType StringValue::get_type() const {
+
+int StringValue::get_type() const {
     return type_;
 }
+
+int StringValue::compare(const TupleValue &other) const {
+    if(other.get_type() != CHARS){
+        return -1;
+    }
+    return compare_data(type_, (char *)(((std::string *)get_value())->c_str()),
+                        other.get_type(), (char *)(((std::string *)other.get_value())->c_str()));
+}
+
+bool StringValue::is_null() const {
+    return is_null_;
+}
+
 
 
 DateValue::DateValue(time_t value){
@@ -95,12 +146,15 @@ void DateValue::to_string(std::ostream &os) const {
 
 void DateValue::set_value(std::string &value){
     value_.assign(value);
-    //is_null_ = false;
+
+    is_null_ = false;
+
 }
 
 void DateValue::set_value(time_t &value){
     value_ = time_t_to_str(value);
-    //is_null_ = false;
+    is_null_ = false;
+
 }
 
 const void *DateValue::get_value() const {
@@ -108,21 +162,27 @@ const void *DateValue::get_value() const {
     return value;
 }
 
-AttrType DateValue::get_type() const {
+
+int DateValue::get_type() const {
+
     return type_;
 }
 
 time_t DateValue::get_value_time_t() const{
-    // if(is_null_){
-    //     return -1;
-    // }
+
+    if(is_null_){
+        return -1;
+    }
+
     return str_to_time_t(&value_);
 }
 
 int DateValue::compare(const TupleValue &other) const  {
-    // if(is_null_){
-    //     return -1;
-    // }
+
+    if(is_null_){
+        return -1;
+    }
+  
     if(other.get_type() != DATES){
         return -1;
     }
@@ -138,7 +198,8 @@ int DateValue::compare(const TupleValue &other) const  {
     return cmp;
 }
 
-// bool DateValue::is_null() const {
-//     return is_null_;
-// }
+
+bool DateValue::is_null() const {
+    return is_null_;
+}
 

@@ -54,6 +54,7 @@ public:
   RC deinit();
 
   RC insert_record(const char *data, RID *rid);
+  RC delete_record(const RID *rid);
   RC update_record(const Record *rec);
 
   template <class RecordUpdater>
@@ -68,7 +69,6 @@ public:
     return rc;
   }
 
-  RC delete_record(const RID *rid);
 
   RC get_record(const RID *rid, Record *rec);
   RC get_first_record(Record *rec);

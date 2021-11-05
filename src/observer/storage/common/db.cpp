@@ -25,6 +25,8 @@ See the Mulan PSL v2 for more details. */
 #include "storage/common/table.h"
 #include "storage/common/meta_util.h"
 
+Table *sys_tbs = nullptr;
+
 
 Db::~Db() {
   for (auto &iter : opened_tables_) {
@@ -71,13 +73,14 @@ RC Db::create_table(const char *table_name, int attribute_count, const AttrInfo 
   return RC::SUCCESS;
 }
 
+
 RC Db::drop_table(const char *table_name) {
   RC rc = RC::SUCCESS;
   //check table_name
   auto kv = opened_tables_.find(table_name);
   if(kv == opened_tables_.end()) {
     return RC::SCHEMA_TABLE_NOT_EXIST;
-  } 
+  }
   Table *table = kv->second;
   //得到table的meta文件路径
   std::string table_file_path = table_meta_file(path_.c_str(), table_name);
@@ -91,7 +94,7 @@ RC Db::drop_table(const char *table_name) {
   delete table;
   opened_tables_.erase(kv);
   LOG_INFO("Drop table success. Table name=%s", table_name);
-  
+
   return RC::SUCCESS;
 }
 
@@ -123,15 +126,37 @@ RC Db::open_all_tables() {
 
     if (opened_tables_.count(table->name()) != 0) {
       delete table;
-      LOG_ERROR("Duplicate table with difference file name. table=%s, the other filename=%s", 
-        table->name(), filename.c_str());
+      LOG_ERROR("Duplicate table with difference file name. table=%s, the other filename=%s",
+                table->name(), filename.c_str());
       return RC::GENERIC_ERROR;
     }
 
     opened_tables_[table->name()] = table;
     LOG_INFO("Open table: %s, file: %s", table->name(), filename.c_str());
   }
+  LOG_INFO("Open system table!\n");
+  //if没有找到，就创建该表
+  if(opened_tables_.find(SYS_TEXT_TABLE_NAME) == opened_tables_.end()){
 
+    AttrInfo attr[4];
+    for(int i = 0; i < 3; i++){
+      attr[i].length = 4;
+      attr[i].type = INTS;
+    }
+    attr[0].name = SYS_TEXT_TABLE_COL1;
+    attr[1].name = SYS_TEXT_TABLE_COL2;
+    attr[2].name = SYS_TEXT_TABLE_COL3;
+
+    attr[3].name = SYS_TEXT_TABLE_COL;
+    attr[3].length = TEXT_LEN;
+    attr[3].type = CHARS;
+    create_table(SYS_TEXT_TABLE_NAME, 4, attr);
+    //创建该系统表
+    sys_tbs = opened_tables_[SYS_TEXT_TABLE_NAME];
+  }else{
+    sys_tbs = opened_tables_[SYS_TEXT_TABLE_NAME];
+  }
+  assert(sys_tbs != nullptr);
   LOG_INFO("All table have been opened. num=%d", opened_tables_.size());
   return rc;
 }

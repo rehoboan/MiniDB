@@ -19,28 +19,28 @@ BplusTreeIndex::~BplusTreeIndex() noexcept {
   close();
 }
 
-RC BplusTreeIndex::create(const char *file_name, const IndexMeta &index_meta, const FieldMeta &field_meta) {
+RC BplusTreeIndex::create(const char *file_name, IndexMeta &index_meta, std::vector<FieldMeta *> field_metas) {
   if (inited_) {
     return RC::RECORD_OPENNED;
   }
 
-  RC rc = Index::init(index_meta, field_meta);
+  RC rc = Index::init(index_meta, field_metas);
   if (rc != RC::SUCCESS) {
     return rc;
   }
 
-  rc = index_handler_.create(file_name, field_meta.type(), field_meta.len());
+  rc = index_handler_.create(file_name, field_metas);
   if (RC::SUCCESS == rc) {
     inited_ = true;
   }
   return rc;
 }
 
-RC BplusTreeIndex::open(const char *file_name, const IndexMeta &index_meta, const FieldMeta &field_meta) {
+RC BplusTreeIndex::open(const char *file_name, IndexMeta &index_meta, std::vector<FieldMeta *> field_metas) {
   if (inited_) {
     return RC::RECORD_OPENNED;
   }
-  RC rc = Index::init(index_meta, field_meta);
+  RC rc = Index::init(index_meta, field_metas);
   if (rc != RC::SUCCESS) {
     return rc;
   }
@@ -59,13 +59,17 @@ RC BplusTreeIndex::close() {
   }
   return RC::SUCCESS;
 }
+int BplusTreeIndex::getUnique(){
+  return index_meta_.getUnique();
+}
 
-RC BplusTreeIndex::insert_entry(const char *record, const RID *rid) {
-  return index_handler_.insert_entry(record + field_meta_.offset(), rid);
+RC BplusTreeIndex::insert_entry(const char *record, const RID *rid,int unique) {
+
+  return index_handler_.insert_entry(record , rid, unique);
 }
 
 RC BplusTreeIndex::delete_entry(const char *record, const RID *rid) {
-  return index_handler_.delete_entry(record + field_meta_.offset(), rid);
+  return index_handler_.delete_entry(record, rid);
 }
 
 IndexScanner *BplusTreeIndex::create_scanner(CompOp comp_op, const char *value) {
@@ -87,7 +91,7 @@ RC BplusTreeIndex::sync() {
 
 ////////////////////////////////////////////////////////////////////////////////
 BplusTreeIndexScanner::BplusTreeIndexScanner(BplusTreeScanner *tree_scanner) :
-    tree_scanner_(tree_scanner) {
+        tree_scanner_(tree_scanner) {
 }
 
 BplusTreeIndexScanner::~BplusTreeIndexScanner() noexcept {

@@ -12,7 +12,7 @@ See the Mulan PSL v2 for more details. */
 // Created by Wangyunlai on 2021/5/7.
 //
 
-#include <stddef.h>
+
 #include "condition_filter.h"
 #include "record_manager.h"
 #include "common/log/log.h"
@@ -35,12 +35,13 @@ DefaultConditionFilter::DefaultConditionFilter()
   right_.attr_offset = 0;
   right_.value = nullptr;
 }
+
 DefaultConditionFilter::~DefaultConditionFilter()
 {}
 
 RC DefaultConditionFilter::init(const ConDesc &left, const ConDesc &right, AttrType attr_type, CompOp comp_op)
 {
-  if (attr_type < CHARS || attr_type > FLOATS) {
+  if (attr_type < CHARS || attr_type > DATES) {
     LOG_ERROR("Invalid condition with unsupported attribute type: %d", attr_type);
     return RC::INVALID_ARGUMENT;
   }
@@ -59,12 +60,12 @@ RC DefaultConditionFilter::init(const ConDesc &left, const ConDesc &right, AttrT
 
 RC DefaultConditionFilter::init(Table &table, const Condition &condition)
 {
-  const TableMeta &table_meta = table.table_meta();
+  TableMeta &table_meta = table.table_meta();
   ConDesc left;
   ConDesc right;
 
-  AttrType type_left = UNDEFINED;
-  AttrType type_right = UNDEFINED;
+  int type_left = UNDEFINED;
+  int type_right = UNDEFINED;
 
   if (1 == condition.left_is_attr) {
     left.is_attr = true;
@@ -120,7 +121,7 @@ RC DefaultConditionFilter::init(Table &table, const Condition &condition)
     return RC::SCHEMA_FIELD_TYPE_MISMATCH;
   }
 
-  return init(left, right, type_left, condition.comp);
+  return init(left, right, static_cast<AttrType>(type_left), condition.comp);
 }
 
 bool DefaultConditionFilter::filter(const Record &rec) const
@@ -144,6 +145,9 @@ bool DefaultConditionFilter::filter(const Record &rec) const
   switch (attr_type_) {
     case CHARS: {  // 字符串都是定长的，直接比较
       // 按照C字符串风格来定
+      cmp_result = strcmp(left_value, right_value);
+    } break;
+    case DATES: {
       cmp_result = strcmp(left_value, right_value);
     } break;
     case INTS: {
@@ -319,6 +323,7 @@ bool CompositeConditionFilter::filter(const Record &rec) const
   return true;
 }
 
+
 bool CompositeConditionFilter::filter(const Tuple &tuple, const TupleSchema &tuple_schema) const {
   for(int i = 0; i<filter_num_; i++) {
     if(!filters_[i]->filter(tuple, tuple_schema)) {
@@ -336,5 +341,121 @@ bool CompositeConditionFilter::filter(const Tuple &left_tuple, const TupleSchema
     }
   }
   return true;
+
+void modify_return_value(int type, ReturnValue &ret, const char *data){
+  switch (type){
+    case INTS:
+      ret.value_i = *(int *)data;
+      break;
+    case FLOATS:
+      ret.value_f = *(float *)data;
+      break;
+    case CHARS:
+      strcpy(ret.value_s, data);
+      break;
+    case DATES:
+      strcpy(ret.value_s, data);
+      break;
+    default:
+      break;
+  }
+}
+
+const ReturnValue switch_data_type(int source_type, int target_type, const char *data){
+  ReturnValue res;
+  modify_return_value(source_type, res, data);
+  if(source_type == target_type){
+    return res;
+  }
+
+  switch (source_type){
+    case CHARS: {
+      switch (target_type){
+        case INTS:{
+          // TODO
+        }
+          break;
+        case FLOATS:{
+          // TODO
+        }
+        default:
+          break;
+      }
+    }
+      break;
+    case INTS: {
+      switch (target_type){
+        case CHARS:{
+          // TODO
+        }
+          break;
+        case FLOATS:{
+          res.value_f = (float)*(int *)data;
+        }
+        default:
+
+          break;
+      }
+    }
+    case FLOATS: {
+      switch (target_type){
+        case CHARS:{
+          // TODO
+        }
+          break;
+        case INTS:{
+          res.value_i = (int)*(float *)data;
+        }
+        default:
+          break;
+      }
+    }
+      break;
+    default:
+      break;
+
+  }
+  return res;
+}
+
+int compare_data(int left_type, const char *left_data, int right_type, const char *right_data){
+  int res = 0;
+  if (left_type == CHARS && right_type == CHARS){
+    res = strcmp(left_data, right_data);
+  }
+  else if (left_type == CHARS || right_type == CHARS){
+    return -1;
+  }
+  if (left_type == DATES && right_type == DATES){
+    res = strcmp(left_data, right_data);
+  }
+  else if (left_type == DATES || right_type == DATES){
+    return -1;
+  }
+  if(left_type == FLOATS || right_type == FLOATS){
+    float left = switch_data_type(left_type, FLOATS, left_data).value_f;
+    float right = switch_data_type(right_type, FLOATS, right_data).value_f;
+    float diff = left - right;
+
+    if(abs(diff) >= 0 && abs(diff) <= 1e-6){
+      res = 0;
+    }
+    else if(diff < 0){
+      res = -1;
+    }
+    else{
+      res = 1;
+    }
+  }
+  else if(left_type == INTS && right_type == INTS){
+    int left = *(int*)left_data;
+    int right = *(int*)right_data;
+    res = left - right;
+  }
+  else{
+    // TODO
+  }
+  return res;
+
 }
 
