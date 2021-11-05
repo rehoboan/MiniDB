@@ -280,7 +280,6 @@ RC Table::insert_record(Trx *trx, int value_num, const Value *values) {
     LOG_ERROR("Failed to create a record. rc=%d:%s", rc, strrc(rc));
     return rc;
   }
-  std::cout<<record_data<<std::endl;
   Record record;
   record.data = record_data;
   // record.valid = true;

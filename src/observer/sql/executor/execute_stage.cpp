@@ -39,7 +39,7 @@ struct hash_pair {
     template <class T1, class T2> 
     size_t operator()(const std::pair<T1, T2>& p) const{ 
       auto hash1 = std::hash<T1>{}(p.first); 
-      auto hash2 = std::hash<T2>{}(p.second); 
+      auto hash2 = std::hash<T2>{}(p.second);
       return hash1 ^ hash2; 
     } 
 }; 
@@ -406,7 +406,6 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
       if(agg_name == nullptr)
         select_columns.emplace_back(relation_name, attr_name); 
       else {//如果是聚集函数列，构造聚集列名（判断是否是单表查询），初始化aggregation信息，加入到agg infos中
-        std::cout<<"agg op type"<<agg_name<<std::endl;
         bool display_table = !(selects.relation_num==1);
         const char *agg_column_name = create_agg_columns_name(relation_name, attr_name, agg_name, display_table);
         AggInfo agg_info;
@@ -429,7 +428,6 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
     is_agg = true;
   }
   if(!is_agg) {
-    std::cout<<"here"<<std::endl;
     res_table.print(ss, select_columns, is_multi_table);
   } else {
     AggregationExeNode agg_node;
@@ -479,12 +477,12 @@ RC join_tables(Trx *trx,
     JoinExeNode join_node;
     const char *left_table_name = iter->first.first;
     const char *right_table_name = iter->first.second;
-    std::cout<<left_table_name<<std::endl;
-    std::cout<<right_table_name<<std::endl;
     
     std::vector<Condition> conditions = std::move(iter->second); 
     if(name2value.count(left_table_name)==0)
       std::cout<<"couln't read left table"<<std::endl;
+    if(name2value.count(right_table_name)==0)
+      std::cout<<"couln't read right table"<<std::endl;
     rc = create_join_executor(trx,
                       *name2value[left_table_name],
                       *name2value[right_table_name],
@@ -537,6 +535,7 @@ RC cartesian_product(Trx *trx, const MapValue2Name &value2name, TupleSet &res_ta
     TupleSet join_tuple;
     TupleSet *right_table = i->first;
     CartesianProductExeNode cartesian_node;
+    create_cartesian_product_executor(trx, *left_table, *right_table, cartesian_node, session_event);
     rc = cartesian_node.execute(join_tuple);
     if(rc != RC::SUCCESS) {
       end_trx_if_need(session, trx, false);
@@ -624,22 +623,23 @@ RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, c
     return RC::SCHEMA_TABLE_NOT_EXIST;
   }
 
-  for (int i = selects.attr_num - 1; i >= 0; i--) {
-    const RelAttr &attr = selects.attributes[i];
-    if (nullptr == attr.relation_name || 0 == strcmp(table_name, attr.relation_name)) {
-      if (0 == strcmp("*", attr.attribute_name)) {
-        // 列出这张表所有字段
-        TupleSchema::from_table(table, schema);
-        break; // 没有校验，给出* 之后，再写字段的错误
-      } else {
-        // 列出这张表相关字段
-        RC rc = schema_add_field(table, attr.attribute_name, schema);
-        if (rc != RC::SUCCESS) {
-          return rc;
-        }
-      }
-    }
-  }
+  // for (int i = selects.attr_num - 1; i >= 0; i--) {
+  //   const RelAttr &attr = selects.attributes[i];
+  //   if (nullptr == attr.relation_name || 0 == strcmp(table_name, attr.relation_name)) {
+  //     if (0 == strcmp("*", attr.attribute_name)) {
+  //       // 列出这张表所有字段
+  //       TupleSchema::from_table(table, schema);
+  //       break; // 没有校验，给出* 之后，再写字段的错误
+  //     } else {
+  //       // 列出这张表相关字段
+  //       RC rc = schema_add_field(table, attr.attribute_name, schema);
+  //       if (rc != RC::SUCCESS) {
+  //         return rc;
+  //       }
+  //     }
+  //   }
+  // }
+  TupleSchema::from_table(table, schema);
 
   // 找出仅与此表相关的过滤条件, 或者都是值的过滤条件
   std::vector<DefaultConditionFilter *> condition_filters;
@@ -723,8 +723,8 @@ RC create_aggregation_executor(Trx *trx,
 void init_join_conditions_between_tables(const Selects &selects, JoinConds &map) {
   for(int i=0; i<selects.condition_num; i++) {
     const Condition &condition = selects.conditions[i];
-    const char *left_table_name = condition.left_attr.relation_name;
-    const char *right_table_name = condition.right_attr.relation_name;
+    const char *left_table_name = selects.conditions[i].left_attr.relation_name;
+    const char *right_table_name = selects.conditions[i].right_attr.relation_name;
     //no table name or non-attr  won't be added to the join conditions
     if(left_table_name == nullptr || right_table_name == nullptr)
       continue;
@@ -761,7 +761,7 @@ void init_join_conditions_between_tables(const Selects &selects, JoinConds &map)
         std::vector<Condition> v;
         map[pair] = std::move(v);
       }
-      map[pair].emplace_back(new_condition);
+      map[pair].emplace_back(std::move(new_condition));
     }
     
   }
@@ -771,8 +771,7 @@ void init_kv_between_name_and_value(std::vector<TupleSet> &tuple_sets,
 
   for(int i=0; i<tuple_sets.size(); i++) {
     TupleSet *tuple_set = &tuple_sets[i];
-    TupleSchema schema = tuple_set->get_schema();
-    const char *table_name = schema.field(0).table_name();
+    const char *table_name = tuple_set->get_schema().field(0).table_name();
 
     if(name2value.count(table_name) == 0) {
       name2value[table_name] = tuple_set;

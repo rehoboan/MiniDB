@@ -95,11 +95,11 @@ RC JoinExeNode::execute(TupleSet &tuple_set) {
   tuple_set.clear();
   tuple_set.set_schema(tuple_schema_);
 
-  std::vector<Tuple> left_tuples = left_table_->tuples();
-  std::vector<Tuple> right_tuples = right_table_->tuples();
+  const std::vector<Tuple> &left_tuples = left_table_->tuples();
+  const std::vector<Tuple> &right_tuples = right_table_->tuples();
 
-  TupleSchema left_schema = left_table_->get_schema();
-  TupleSchema right_schema = right_table_->get_schema();
+  const TupleSchema &left_schema = left_table_->get_schema();
+  const TupleSchema &right_schema = right_table_->get_schema();
 
   for(int i=0; i<left_table_->size(); i++) {
     for(int j=0; j<right_table_->size(); j++) {
