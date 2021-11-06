@@ -89,7 +89,7 @@ RC DiskBufferPool::create_file(const char *file_name)
     return RC::IOERR_WRITE;
   }
   int a=page.page_num;
-  std::cout<<a<<std::endl;
+  std::cout<<fd<<std::endl;
   close(fd);
   LOG_INFO("Successfully create %s.", file_name);
   return RC::SUCCESS;
