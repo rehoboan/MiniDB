@@ -230,7 +230,8 @@ desc_table:
     ;
 
 create_index:		/*create index 语句的语法解析树*/
-    CREATE INDEX ID ON ID LBRACE ID RBRACE SEMICOLON
+//    CREATE INDEX ID ON ID LBRACE ID RBRACE SEMICOLON
+	CREATE INDEX ID ON ID LBRACE field field_list RBRACE SEMICOLON
 		{
 			CONTEXT->ssql->flag = SCF_CREATE_INDEX;//"create_index";
 			create_index_init(&CONTEXT->ssql->sstr.create_index, $3, $5, CONTEXT->field_names, CONTEXT->index_field_num, 0);
