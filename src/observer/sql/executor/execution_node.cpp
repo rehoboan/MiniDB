@@ -211,7 +211,7 @@ RC AggregationExeNode::execute(Tuple &tuple, std::vector<const char *> &agg_colu
       value.value_idx = 1;
     } else {
       int field_index = map[agg_column_name];
-      AttrType type = table_->get_schema().field(field_index).type();
+      int type = table_->get_schema().field(field_index).type();
 
       switch (type){
         case INTS:
@@ -227,6 +227,8 @@ RC AggregationExeNode::execute(Tuple &tuple, std::vector<const char *> &agg_colu
         case CHARS:
           value.value_idx = 3;
           break;
+        case DATES:
+          value.value_idx = 4;
         default:
           break;
       }
@@ -302,6 +304,9 @@ RC AggregationExeNode::execute(Tuple &tuple, std::vector<const char *> &agg_colu
                 strlen(agg_value.values.string_value));
       }
       break;
+      case 5: {//dates
+        tuple.add(agg_value.values.date_value);
+      }
 
       default:
       break;
@@ -364,7 +369,14 @@ RC AggregationExeNode::max(const TupleValue &value, AggValue &res, bool is_init)
     }
     break;
     case DATES:{
-      //todo
+      time_t value_time = ((const DateValue&)value).get_value_time_t();
+      if(is_init){
+        if(value_time > res.values.date_value) {
+          res.values.date_value = value_time;
+        }
+      } else {
+        res.values.date_value = value_time;
+      }
     }
     break;
     default:
@@ -409,7 +421,14 @@ RC AggregationExeNode::min(const TupleValue &value, AggValue &res, bool is_init)
     }
     break;
     case DATES:{
-      //todo
+      time_t value_time = ((const DateValue&)value).get_value_time_t();
+      if(is_init){
+        if(value_time < res.values.date_value) {
+          res.values.date_value = value_time;
+        }
+      } else {
+        res.values.date_value = value_time;
+      }      
     }
     break;
     default:
@@ -453,7 +472,12 @@ RC AggregationExeNode::avg(const TupleValue &value, AggValue &res, int size, boo
     }
     break;
     case DATES:{
-      //todo
+      time_t value_time = ((const DateValue&)value).get_value_time_t();
+      if(is_init){
+        res.values.date_value = (res.values.date_value * (size-1) + value_time) / size;
+      } else {
+        res.values.date_value = value_time;
+      }
     }
     break;
     default:

@@ -16,9 +16,11 @@ See the Mulan PSL v2 for more details. */
 #define __OBSERVER_STORAGE_COMMON_CONDITION_FILTER_H_
 
 #include "rc.h"
-#include "sql/executor/tuple.h"
 #include "sql/parser/parse.h"
-
+#include "record_manager.h"
+#include "common/log/log.h"
+#include "storage/common/table.h"
+#include "sql/executor/tuple.h"
 
 
 struct Record;

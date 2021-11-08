@@ -67,32 +67,7 @@ RC Trx::insert_record(Table *table, Record *record) {
   return rc;
 }
 
-RC Trx::update_record(Table *table, Record *record, const char *attribute_name, const Value *value) {
-  RC rc = RC::SUCCESS;
-  start_if_not_started();
-  
-  //执行update操作
-  rc = table->update_record(record, attribute_name, value);
-  if(rc != RC::SUCCESS) {
-    return rc;
-  }
 
-  Operation *old_oper = find_operation(table, record->rid);
-  if(old_oper != nullptr) {
-    if(old_oper->type() == Operation::Type::UPDATE) {
-      return RC::SUCCESS;
-    } else if(old_oper->type() == Operation::Type::INSERT) {
-      delete_operation(table, record->rid);
-      insert_operation(table, Operation::Type::UPDATE, record->rid);
-      return RC::SUCCESS;
-    } else {
-      return RC::GENERIC_ERROR;
-    }
-  }
-  set_record_trx_id(table, *record, trx_id_, false);
-  insert_operation(table, Operation::Type::UPDATE, record->rid);
-  return rc;
-}
 
 RC Trx::delete_record(Table *table, Record *record) {
   RC rc = RC::SUCCESS;

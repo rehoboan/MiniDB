@@ -100,6 +100,10 @@ RC create_aggregation_executor(Trx *trx,
                               AggregationExeNode &agg_node,
                               SessionEvent *session_event);
 
+RC check_select_metadata(const Selects &selects, const char *db, SessionEvent *session_event);
+
+RC check_field(std::unordered_map<const char *, Table *, hash_string, equal_string>tables, const char *relation_name, const char *attr_name, SessionEvent *session_event);
+
 //init join conditions
 void init_join_conditions_between_tables(const Selects &selects, JoinConds &map);
 //init map between tablename and filtered tuple sets
@@ -303,6 +307,13 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
   Session *session = session_event->get_client()->session;
   Trx *trx = session->current_trx();
   const Selects &selects = sql->sstr.selection;
+  //先进行原数据校验
+  rc = check_select_metadata(selects, db, session_event);
+  if(rc != RC::SUCCESS) {
+    LOG_ERROR("select metadata check error");
+    end_trx_if_need(session, trx, false);
+    return rc;
+  }
   // 把所有的表和只跟这张表关联的condition都拿出来，生成最底层的select 执行节点
   std::vector<SelectExeNode *> select_nodes;
   for (size_t i = 0; i < selects.relation_num; i++) {
@@ -577,10 +588,10 @@ void create_select_columns_with_star(const char *db, const Selects &selects,
   for(int i=0; i<selects.relation_num; i++) {
     const char *table_name = selects.relations[i];
     Table * table = DefaultHandler::get_default().find_table(db, table_name);
-    const TableMeta &table_meta = table->table_meta();
-    const int field_num = table_meta.field_num();
+    TableMeta &table_meta = table->table_meta();
+    int field_num = table_meta.field_num();
     for(int i=0; i < field_num; i++) {
-      const FieldMeta *field_meta = table_meta.field(i);
+      FieldMeta *field_meta = table_meta.field(i);
       if(field_meta->visible()) {
         select_columns.emplace_back(table_name, field_meta->name());
       }
@@ -719,6 +730,124 @@ RC create_aggregation_executor(Trx *trx,
   return agg_node.init(trx, &table, std::move(agg_infos));                                
 }
 
+
+RC check_select_metadata(const Selects &selects, const char *db, SessionEvent *session_event) {  
+  if(selects.relation_num <= 0){
+    LOG_ERROR("No table given");
+    return RC::SQL_SYNTAX;
+  }
+  if(selects.attr_num <= 0){
+    LOG_ERROR("No column given");
+    return RC::SQL_SYNTAX;
+  }
+
+  //检验表是否存在
+  std::unordered_map<const char *, Table *, hash_string, equal_string> tables;
+  for(int i=0; i < selects.relation_num; i++) {
+    const char *table_name = selects.relations[i];
+    Table *table = DefaultHandler::get_default().find_table(db, table_name);
+    if(table == nullptr) {
+      LOG_WARN("No such table [%s] in db [%s]", table_name, db);
+      char err[256];
+      sprintf(err, "FAILURE\n", table_name, db);
+      session_event->set_response(err);
+      return RC::SCHEMA_TABLE_NOT_EXIST;
+    }
+    tables[table_name] = table;
+  }
+
+  //检验查询列
+  RC rc = RC::SUCCESS;
+  for(int i=0; i < selects.attr_num; i++) {
+    const RelAttr &attr = selects.attributes[i];
+    const char *relation_name = attr.relation_name;
+    const char *attr_name = attr.attribute_name;
+    const char *agg_name = attr.agg_name;
+
+    if(strcmp(attr_name, "*")==0) {
+      if(agg_name != nullptr){
+        continue;
+      } else  if(selects.attr_num > 1) {
+        //不允许*和其他选择列同时出现
+        return RC::MISUSE;
+      } else {
+        break;
+      }
+    }
+
+    // 如果是多表查询，判断是否列出表名
+    if(tables.size()>1 && relation_name == nullptr) {
+      LOG_WARN("select attribute [%s] in db [%s] should be given according table's name", attr_name, db);
+      char err[256];
+      sprintf(err, "Failure. select attribute [%s] in db [%s] should be given according table's name", attr_name, db);
+      session_event->set_response(err);
+      return RC::SQL_SYNTAX;
+    }
+    //检查 field是否存在
+    rc = check_field(tables, relation_name, attr_name, session_event);
+    if(rc != RC::SUCCESS) {
+      return rc;
+    }
+  }
+  //检查condition
+  for(int i = 0; i < selects.condition_num; i++){
+    const Condition &condition = selects.conditions[i];
+    if(condition.left_is_attr) {
+      const char *relation_name = condition.left_attr.relation_name;
+      const char *attr_name = condition.left_attr.attribute_name;
+      rc = check_field(tables, relation_name, attr_name, session_event);
+      if(rc != RC::SUCCESS) {
+        return rc;
+      }
+    }
+
+    if(condition.right_is_attr) {
+      const char *relation_name = condition.right_attr.relation_name;
+      const char *attr_name = condition.right_attr.attribute_name;
+      rc = check_field(tables, relation_name, attr_name, session_event);
+      if(rc != RC::SUCCESS) {
+        return rc;
+      }
+    }
+
+  }
+
+  return RC::SUCCESS;
+}
+//检查table中是否有该field
+RC check_field(std::unordered_map<const char *, Table *, hash_string, equal_string>tables, 
+            const char *relation_name, const char *attr_name, SessionEvent *session_event) {
+  char err[256];
+  if(tables.size()>1 && tables.count(relation_name)==0 ||
+  tables.size()==1 && relation_name != nullptr && tables.count(relation_name)==0) {
+    if(relation_name != nullptr) {
+      LOG_WARN("Table [%s] is non-exist", relation_name);
+      sprintf(err, "Failure! Table [%s] is non-exist\n", relation_name);
+    } else {
+      LOG_WARN("Please given the relation name of the column when you select many tables");
+      sprintf(err, "Failure! Please given the relation name of the column when you select many tables");
+    }
+    session_event->set_response(err);
+    return RC::SQL_SYNTAX;
+  }
+  
+  Table *table;
+  if(relation_name != nullptr) {
+    table = tables[relation_name];
+  } else {
+    //前面校验没问题，那一定是单表查询
+    table = tables.begin()->second;
+  }
+  //检查列是否存在
+  const FieldMeta *field_meta = table->table_meta().field(attr_name);
+  if(field_meta == nullptr) {
+    LOG_WARN("No such field. %s.%s", relation_name, attr_name);
+    sprintf(err, "Failure! No such field.\n");
+    session_event->set_response(err);
+    return RC::SCHEMA_FIELD_MISSING;
+  }
+  return RC::SUCCESS;
+}
 
 void init_join_conditions_between_tables(const Selects &selects, JoinConds &map) {
   for(int i=0; i<selects.condition_num; i++) {

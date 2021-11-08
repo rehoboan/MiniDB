@@ -21,6 +21,13 @@ See the Mulan PSL v2 for more details. */
 #include "sql/parser/parse.h"
 #include "sql/executor/value.h"
 
+#include <storage/common/record_manager.h>
+#include "storage/common/db.h"
+
+#include "storage/common/table.h"
+#include "common/log/log.h"
+
+
 class Table;
 
 class Tuple {
