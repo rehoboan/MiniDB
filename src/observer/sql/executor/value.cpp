@@ -10,6 +10,131 @@ See the Mulan PSL v2 for more details. */
 
 #include "sql/executor/value.h"
 
+union ReturnValue {
+    float value_f;
+    int value_i;
+    char *value_s;
+};
+
+void modify_return_value(int type, ReturnValue &ret, const char *data){
+  switch (type){
+    case INTS:
+      ret.value_i = *(int *)data;
+      break;
+    case FLOATS:
+      ret.value_f = *(float *)data;
+      break;
+    case CHARS:
+      strcpy(ret.value_s, data);
+      break;
+    case DATES:
+      strcpy(ret.value_s, data);
+      break;
+    default:
+      break;
+  }
+}
+
+const ReturnValue switch_data_type(int source_type, int target_type, const char *data){
+  ReturnValue res;
+  modify_return_value(source_type, res, data);
+  if(source_type == target_type){
+    return res;
+  }
+
+  switch (source_type){
+    case CHARS: {
+      switch (target_type){
+        case INTS:{
+          // TODO
+        }
+          break;
+        case FLOATS:{
+          // TODO
+        }
+        default:
+          break;
+      }
+    }
+      break;
+    case INTS: {
+      switch (target_type){
+        case CHARS:{
+          // TODO
+        }
+          break;
+        case FLOATS:{
+          res.value_f = (float)*(int *)data;
+        }
+        default:
+
+          break;
+      }
+    }
+    case FLOATS: {
+      switch (target_type){
+        case CHARS:{
+          // TODO
+        }
+          break;
+        case INTS:{
+          res.value_i = (int)*(float *)data;
+        }
+        default:
+          break;
+      }
+    }
+      break;
+    default:
+      break;
+
+  }
+  return res;
+}
+
+
+int compare_data(int left_type, const char *left_data, int right_type, const char *right_data){
+  int res = 0;
+  if (left_type == CHARS && right_type == CHARS){
+    res = strcmp(left_data, right_data);
+  }
+  else if (left_type == CHARS || right_type == CHARS){
+    return -1;
+  }
+  if (left_type == DATES && right_type == DATES){
+    res = strcmp(left_data, right_data);
+  }
+  else if (left_type == DATES || right_type == DATES){
+    return -1;
+  }
+  if(left_type == FLOATS || right_type == FLOATS){
+    float left = switch_data_type(left_type, FLOATS, left_data).value_f;
+    float right = switch_data_type(right_type, FLOATS, right_data).value_f;
+    float diff = left - right;
+
+    if(abs(diff) >= 0 && abs(diff) <= 1e-6){
+      res = 0;
+    }
+    else if(diff < 0){
+      res = -1;
+    }
+    else{
+      res = 1;
+    }
+  }
+  else if(left_type == INTS && right_type == INTS){
+    int left = *(int*)left_data;
+    int right = *(int*)right_data;
+    res = left - right;
+  }
+  else{
+    // TODO
+  }
+  return res;
+}
+
+
+
 void IntValue::to_string(std::ostream &os) const{
     os << value_;
 }

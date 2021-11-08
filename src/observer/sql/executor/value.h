@@ -20,7 +20,7 @@ See the Mulan PSL v2 for more details. */
 #include <string>
 #include <ostream>
 #include "sql/parser/parse.h"
-#include "storage/common/condition_filter.h"
+
 
 class TupleValue {
 public:
