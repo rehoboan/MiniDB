@@ -20,6 +20,7 @@ See the Mulan PSL v2 for more details. */
 #include "record_manager.h"
 #include "common/log/log.h"
 #include "storage/common/table.h"
+#include "db.h"
 
 
 struct Record;
@@ -61,7 +62,8 @@ public:
     DefaultConditionFilter();
     virtual ~DefaultConditionFilter();
 
-    RC init(const ConDesc &left, const ConDesc &right, AttrType attr_type, CompOp comp_op);
+//    RC init(const ConDesc &left, const ConDesc &right, AttrType attr_type, CompOp comp_op);
+    RC init(const ConDesc &left, const ConDesc &right, int left_attr_type, int right_attr_type, CompOp comp_op);
     RC init(Table &table, const Condition &condition);
 
     virtual bool filter(const Record &rec) const;
@@ -82,8 +84,12 @@ public:
 private:
     ConDesc  left_;
     ConDesc  right_;
-    AttrType attr_type_ = UNDEFINED;
+//    AttrType attr_type_ = UNDEFINED;
+    int left_attr_type_;
+    int right_attr_type_;
     CompOp   comp_op_ = NO_OP;
+
+
 };
 
 class CompositeConditionFilter : public ConditionFilter {
