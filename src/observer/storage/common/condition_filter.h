@@ -17,7 +17,9 @@ See the Mulan PSL v2 for more details. */
 
 #include "rc.h"
 #include "sql/parser/parse.h"
-
+#include "record_manager.h"
+#include "common/log/log.h"
+#include "storage/common/table.h"
 
 
 struct Record;

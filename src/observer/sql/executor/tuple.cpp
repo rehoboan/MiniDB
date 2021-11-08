@@ -11,11 +11,8 @@ See the Mulan PSL v2 for more details. */
 //
 // Created by Wangyunlai on 2021/5/14.
 //
-#include <storage/common/record_manager.h>
-#include "storage/common/db.h"
+
 #include "sql/executor/tuple.h"
-#include "storage/common/table.h"
-#include "common/log/log.h"
 
 Tuple::Tuple(const Tuple &other) {
   LOG_PANIC("Copy constructor of tuple is not supported");
