@@ -137,7 +137,7 @@ void condition_destroy(Condition *condition) {
   }
 }
 
-void attr_info_init(AttrInfo *attr_info, const char *name, AttrType type, size_t length, bool nullable) {
+void attr_info_init(AttrInfo *attr_info, const char *name, int type, size_t length, bool nullable) {
 
     attr_info->name = strdup(name);
 
