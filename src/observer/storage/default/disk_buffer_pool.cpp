@@ -214,7 +214,7 @@ RC DiskBufferPool::get_this_page(int file_id, PageNum page_num, BPPageHandle *pa
     LOG_ERROR("Failed to load page %s:%d, due to invalid pageNum.", file_handle->file_name, page_num);
     return tmp;
   }
-
+//找到分配过的frame且为对应文件的页面，若该页面的page_num正好为要找的page_num(已经被load进来)，初始化page_handle
   for (int i = 0; i < BP_BUFFER_SIZE; i++) {
     if (!bp_manager_.allocated[i])
       continue;
@@ -230,7 +230,7 @@ RC DiskBufferPool::get_this_page(int file_id, PageNum page_num, BPPageHandle *pa
       return RC::SUCCESS;
     }
   }
-
+//走到这里说明没找到（没有load进来），分配一个额外的块，同样初始化page_handle元信息,然后把页面load进来
   // Allocate one page and load the data into this page
   if ((tmp = allocate_block(&(page_handle->frame))) != RC::SUCCESS) {
     LOG_ERROR("Failed to load page %s:%d, due to failed to alloc page.", file_handle->file_name, page_num);

@@ -286,6 +286,82 @@ bool DefaultConditionFilter::filter(const Record &rec) const
 
 
 
+JoinConditionFilter::JoinConditionFilter() {}
+
+JoinConditionFilter::~JoinConditionFilter() {}
+
+
+RC JoinConditionFilter::init(const RelAttr &left, const RelAttr &right, CompOp comp_op) {
+  left_ = left;
+  right_ = right;
+  comp_op_ = comp_op;
+  return RC::SUCCESS;
+}
+
+bool JoinConditionFilter::filter(const Tuple &tuple, const TupleSchema &tuple_schema) const {
+  int res_op = 0;
+  int idx1 = tuple_schema.index_of_field(left_.relation_name, left_.attribute_name);
+  int idx2 = tuple_schema.index_of_field(right_.relation_name, right_.attribute_name);
+  TupleValue *left_value = tuple.get_pointer(idx1).get();
+  TupleValue *right_value = tuple.get_pointer(idx2).get();
+  if(left_value && right_value)
+    res_op = left_value->compare(*right_value);
+
+  switch (comp_op_) {
+  case EQUAL_TO:
+    return 0 == res_op;
+  case LESS_EQUAL:
+    return res_op <= 0;
+  case NOT_EQUAL:
+    return res_op != 0;
+  case LESS_THAN:
+    return res_op < 0;
+  case GREAT_EQUAL:
+    return res_op >= 0;
+  case GREAT_THAN:
+    return res_op > 0;
+
+  default:
+    break;
+  }
+
+  LOG_PANIC("Never should print this.");
+  return res_op;  // should not go here
+    
+}
+bool JoinConditionFilter::filter(const Tuple &left_tuple, const TupleSchema &left_schema, 
+                      const Tuple &right_tuple, const TupleSchema &right_schema) const {
+  int res_op = 0;
+  int idx1 = left_schema.index_of_field(left_.relation_name, left_.attribute_name);
+  int idx2 = right_schema.index_of_field(right_.relation_name, right_.attribute_name);
+
+  TupleValue *left_value = left_tuple.get_pointer(idx1).get();
+  TupleValue *right_value = right_tuple.get_pointer(idx2).get();
+  res_op = left_value->compare(*right_value);
+
+  switch (comp_op_) {
+  case EQUAL_TO:
+    return 0 == res_op;
+  case LESS_EQUAL:
+    return res_op <= 0;
+  case NOT_EQUAL:
+    return res_op != 0;
+  case LESS_THAN:
+    return res_op < 0;
+  case GREAT_EQUAL:
+    return res_op >= 0;
+  case GREAT_THAN:
+    return res_op > 0;
+
+  default:
+    break;
+  }
+
+  LOG_PANIC("Never should print this.");
+  return res_op;  // should not go here
+}
+
+
 CompositeConditionFilter::~CompositeConditionFilter()
 {
   if (memory_owner_) {
@@ -345,6 +421,26 @@ bool CompositeConditionFilter::filter(const Record &rec) const
   return true;
 }
 
+
+bool CompositeConditionFilter::filter(const Tuple &tuple, const TupleSchema &tuple_schema) const {
+  for(int i = 0; i<filter_num_; i++) {
+    if(!filters_[i]->filter(tuple, tuple_schema)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool CompositeConditionFilter::filter(const Tuple &left_tuple, const TupleSchema &left_schema, 
+                      const Tuple &right_tuple, const TupleSchema &right_schema) const {
+  for(int i=0; i<filter_num_; i++) {
+    if(!filters_[i]->filter(left_tuple, left_schema, right_tuple, right_schema)) {
+      return false;
+    }
+  }
+  return true;
+
+                      }
 
 
 

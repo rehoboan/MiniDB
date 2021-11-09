@@ -73,6 +73,10 @@ ParserContext *get_context(yyscan_t scanner)
 %token  SEMICOLON
         CREATE
         DROP
+		COUNT
+		MAX
+		MIN
+		AVG
         TABLE
         TABLES
         INDEX
@@ -439,7 +443,54 @@ select_attr:
 			relation_attr_init(&attr, $1, $3);
 			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
 		}
+	
+	| COUNT LBRACE STAR RBRACE attr_list {
+			RelAttr attr;
+			relation_attr_with_agg_init(&attr, "COUNT", NULL, "*");
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+		}
+	| COUNT LBRACE ID RBRACE attr_list {
+			RelAttr attr;
+			relation_attr_with_agg_init(&attr, "COUNT", NULL, $3);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+		}
+	| COUNT LBRACE ID DOT ID RBRACE attr_list {
+			RelAttr attr;
+			relation_attr_with_agg_init(&attr, "COUNT", $3, $5);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+		}
+	| MAX LBRACE ID RBRACE attr_list {
+			RelAttr attr;
+			relation_attr_with_agg_init(&attr, "MAX", NULL, $3);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+		}	
+	| MAX LBRACE ID DOT ID RBRACE attr_list {
+			RelAttr attr;
+			relation_attr_with_agg_init(&attr, "MAX", $3, $5);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+		}
+	| MIN LBRACE ID RBRACE attr_list {
+			RelAttr attr;
+			relation_attr_with_agg_init(&attr, "MIN", NULL, $3);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+		}
+	| MIN LBRACE ID DOT ID RBRACE attr_list {
+			RelAttr attr;
+			relation_attr_with_agg_init(&attr, "MIN", $3, $5);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+		}
+	| AVG LBRACE ID RBRACE attr_list {
+			RelAttr attr;
+			relation_attr_with_agg_init(&attr, "AVG", NULL, $3);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+		}
+	| AVG LBRACE ID DOT ID RBRACE attr_list {
+			RelAttr attr;
+			relation_attr_with_agg_init(&attr, "MIN", $3, $5);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+		}	
     ;
+
 attr_list:
     /* empty */
     | COMMA ID attr_list {
@@ -456,7 +507,52 @@ attr_list:
         // CONTEXT->ssql->sstr.selection.attributes[CONTEXT->select_length].attribute_name=$4;
         // CONTEXT->ssql->sstr.selection.attributes[CONTEXT->select_length++].relation_name=$2;
   	  }
-  	;
+	| COMMA COUNT LBRACE STAR RBRACE attr_list {
+			RelAttr attr;
+			relation_attr_with_agg_init(&attr, "COUNT", NULL, "*");
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	  }
+	| COMMA COUNT LBRACE ID RBRACE attr_list {
+			RelAttr attr;
+			relation_attr_with_agg_init(&attr, "COUNT", NULL, $4);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	| COMMA COUNT LBRACE ID DOT ID RBRACE attr_list {
+			RelAttr attr;
+			relation_attr_with_agg_init(&attr, "COUNT", $4, $6);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	| COMMA MAX LBRACE ID RBRACE attr_list {
+			RelAttr attr;
+			relation_attr_with_agg_init(&attr, "MAX", NULL, $4);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	| COMMA MAX LBRACE ID DOT ID RBRACE attr_list {
+			RelAttr attr;
+			relation_attr_with_agg_init(&attr, "MAX", $4, $6);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	| COMMA MIN LBRACE ID RBRACE attr_list {
+			RelAttr attr;
+			relation_attr_with_agg_init(&attr, "MIN", NULL, $4);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	| COMMA MIN LBRACE ID DOT ID RBRACE attr_list {
+			RelAttr attr;
+			relation_attr_with_agg_init(&attr, "MIN", $4, $6);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	| COMMA AVG LBRACE ID RBRACE attr_list {
+			RelAttr attr;
+			relation_attr_with_agg_init(&attr, "AVG", NULL, $4);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	} 
+	| COMMA AVG LBRACE ID DOT ID RBRACE attr_list {
+			RelAttr attr;
+			relation_attr_with_agg_init(&attr, "AVG", $4, $6);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+	}
+	;
 
 rel_list:
     /* empty */

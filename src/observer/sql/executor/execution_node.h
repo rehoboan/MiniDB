@@ -16,6 +16,7 @@ See the Mulan PSL v2 for more details. */
 #define __OBSERVER_SQL_EXECUTOR_EXECUTION_NODE_H_
 
 #include <vector>
+#include <unordered_map>
 #include "storage/common/condition_filter.h"
 #include "sql/executor/tuple.h"
 
@@ -43,6 +44,67 @@ private:
   Table  * table_;
   TupleSchema  tuple_schema_;
   std::vector<DefaultConditionFilter *> condition_filters_;
+};
+
+class JoinExeNode : public ExecutionNode {
+public:
+  JoinExeNode();
+  virtual ~JoinExeNode();
+
+  RC init(Trx *trx, 
+          const TupleSet *left_table, const TupleSet *right_table,
+          TupleSchema tuple_schema,
+          std::vector<JoinConditionFilter*> condition_filters);
+
+  RC execute(TupleSet &tuple_set) override;
+  
+private:
+  Trx *trx_ = nullptr;
+  const TupleSet *left_table_;
+  const TupleSet *right_table_;
+  TupleSchema tuple_schema_;
+  std::vector<JoinConditionFilter*> condition_filters_;
+};
+
+class CartesianProductExeNode : public ExecutionNode {
+public:
+  CartesianProductExeNode();
+  virtual ~CartesianProductExeNode();
+
+  RC init(Trx *trx,
+          const TupleSet *left_table, const TupleSet *right_table,
+          const TupleSchema &tuple_schema);
+
+  RC execute(TupleSet &tuple_set) override;
+
+private:
+  Trx *trx_ = nullptr;
+  const TupleSet *left_table_;
+  const TupleSet *right_table_;
+  TupleSchema tuple_schema_;
+};
+
+class AggregationExeNode {
+public:
+  AggregationExeNode();
+  virtual ~AggregationExeNode();
+
+  RC init(Trx *trx,
+          const TupleSet *table, std::vector<std::pair<const char *, AggInfo>> &&agg_infos);
+
+  RC execute(Tuple &tuple, std::vector<const char *> &agg_columns);
+private:
+  RC init_index_map(std::unordered_map<const char *, int> &map);
+  RC max(const TupleValue &value, AggValue &res, bool is_init);
+  RC min(const TupleValue &value, AggValue &res, bool is_init);
+  RC count(AggValue &res);
+  RC avg(const TupleValue &value, AggValue &res, int size, bool is_init);
+
+
+private:
+  Trx *trx_ = nullptr;
+  const TupleSet *table_;
+  std::vector<std::pair<const char *, AggInfo>> agg_infos_;
 };
 
 #endif //__OBSERVER_SQL_EXECUTOR_EXECUTION_NODE_H_

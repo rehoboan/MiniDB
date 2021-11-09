@@ -188,6 +188,50 @@ void TupleSet::print(std::ostream &os) const {
   }
 }
 
+
+void TupleSet::print(std::ostream &os, std::vector<std::pair<const char *, const char *>> &select_columns, bool is_multi_table) {
+  if (schema_.fields().empty() || select_columns.size()==0) {
+    LOG_WARN("Got empty schema");
+    return;
+  }
+
+
+  std::vector<int> select_columns_id;
+  for(int i=0; i<select_columns.size(); i++) {
+    int idx = schema_.index_of_field(select_columns[i].first, select_columns[i].second);
+    if(idx == -1) {
+      LOG_WARN("The column of required columns is non-exist in the table");
+      return;
+    }
+    select_columns_id.push_back(idx);
+  }
+  //print schema format
+  for(int i=0; i<select_columns_id.size()-1; i++) {
+    if(is_multi_table){
+        os<<select_columns[i].first<<".";
+    }
+    os<<select_columns[i].second<<" | ";
+  }
+  if(is_multi_table) {
+    os<<select_columns.back().first<<".";
+  }
+  os<<select_columns.back().second<<std::endl;
+
+  //print select result
+  for (const Tuple &item : tuples_) {
+    const std::vector<std::shared_ptr<TupleValue>> &values = item.values();
+    for(int i=0; i<select_columns_id.size()-1; i++) {
+      int idx = select_columns_id[i];
+      values[idx]->to_string(os);
+      os << " | ";
+    }
+    int idx = select_columns_id.back();
+    values[idx]->to_string(os);
+    os << std::endl;
+  }
+  
+}
+
 void TupleSet::set_schema(const TupleSchema &schema) {
   schema_ = schema;
 }

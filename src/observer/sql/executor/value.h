@@ -17,6 +17,9 @@ See the Mulan PSL v2 for more details. */
 
 #include <cstring>
 #include <ctime>
+#include <string.h>
+#include <iomanip>
+
 #include <string>
 #include <ostream>
 #include "sql/parser/parse.h"
@@ -37,11 +40,12 @@ private:
 
 class IntValue : public TupleValue {
 public:
+
       explicit IntValue(int value) : value_(value), type_(INTS) {
         }
 
-//    explicit IntValue() : value_(NULL_VALUE), type_(INTS), is_null_(true) {
-//    }
+      explicit IntValue() : value_(NULL_VALUE), type_(INTS), is_null_(true) {
+      }
 
       void to_string(std::ostream &os) const override;
 
@@ -54,19 +58,21 @@ public:
       int get_type() const override;
 
       bool is_null() const override;
-
 private:
+
       int value_;
       int type_;
       bool is_null_ = false;
+  
 };
 
 class FloatValue : public TupleValue {
 public:
-    explicit FloatValue(float value) : value_(value), type_(FLOATS) {
-    }
+  explicit FloatValue(float value) : value_(value), type_(FLOATS) {
+  }
 
-    void to_string(std::ostream &os) const override;
+
+  void to_string(std::ostream &os) const override;
 
     void set_value(float value);
 
@@ -86,14 +92,18 @@ private:
 
 class StringValue : public TupleValue {
 public:
+
+
+  void to_string(std::ostream &os) const override;
+
+  int compare(const TupleValue &other) const override;
+
     explicit StringValue(const char *value, int len) : value_(value, len), type_(CHARS){
     }
-//    explicit StringValue(const char *value) : value_(value) {
-//    }
+
     explicit StringValue() : value_("NULL", 4), type_(CHARS), is_null_(true) {
     }
 
-    void to_string(std::ostream &os) const override;
 
     void set_value(std::string &value);
 
@@ -101,7 +111,6 @@ public:
 
     int get_type() const override;
 
-    int compare(const TupleValue &other) const override;
 
     bool is_null() const override;
 private:
@@ -115,8 +124,10 @@ public:
     explicit DateValue(const char *value, int len) : value_(value, len), type_(DATES){
     }
     explicit DateValue(time_t value);
+
     explicit DateValue() : value_("NULL", 4), type_(DATES), is_null_(true) {
     }
+  
     void to_string(std::ostream &os) const override;
 
     void set_value(std::string &value);
@@ -125,18 +136,22 @@ public:
     time_t get_value_time_t() const;
     const void *get_value() const override;
 
+
     int get_type() const override;
 
     int compare(const TupleValue &other) const override;
 
     bool is_null() const override;
+
 private:
     static time_t str_to_time_t(const std::string *str) ;
     static std::string time_t_to_str(time_t time) ;
 private:
     std::string value_;
+
     int type_;
     bool is_null_ = false;
+
 };
 
 #endif //__OBSERVER_SQL_EXECUTOR_VALUE_H_

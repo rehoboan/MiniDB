@@ -20,7 +20,9 @@ See the Mulan PSL v2 for more details. */
 #include "record_manager.h"
 #include "common/log/log.h"
 #include "storage/common/table.h"
+#include "sql/executor/tuple.h"
 #include "db.h"
+
 
 
 struct Record;
@@ -47,14 +49,19 @@ const ReturnValue switch_data_type(int source_type, int target_type, const char 
 
 class ConditionFilter {
 public:
-    virtual ~ConditionFilter();
 
-    /**
-     * Filter one record
-     * @param rec
-     * @return true means match condition, false means failed to match.
-     */
-    virtual bool filter(const Record &rec) const = 0;
+  virtual ~ConditionFilter();
+
+  /**
+   * Filter one record
+   * @param rec
+   * @return true means match condition, false means failed to match.
+   */
+  virtual bool filter(const Record &rec) const = 0;
+  virtual bool filter(const Tuple &tuple, const TupleSchema &tuple_schema) const = 0;
+  virtual bool filter(const Tuple &left_tuple, const TupleSchema &left_schema, 
+                      const Tuple &right_tuple, const TupleSchema &right_schema) const = 0;
+
 };
 
 class DefaultConditionFilter : public ConditionFilter {
@@ -66,7 +73,12 @@ public:
     RC init(const ConDesc &left, const ConDesc &right, int left_attr_type, int right_attr_type, CompOp comp_op);
     RC init(Table &table, const Condition &condition);
 
-    virtual bool filter(const Record &rec) const;
+
+  virtual bool filter(const Record &rec) const;
+  virtual bool filter(const Tuple &tuple, const TupleSchema &tuple_schema) const {return false;}
+  virtual bool filter(const Tuple &left_tuple, const TupleSchema &left_schema, 
+                      const Tuple &right_tuple, const TupleSchema &right_schema) const {return false;}  
+
 
 public:
     const ConDesc &left() const {
@@ -92,14 +104,40 @@ private:
 
 };
 
+class JoinConditionFilter : public ConditionFilter {
+public:
+  JoinConditionFilter();
+  virtual ~JoinConditionFilter();
+
+  RC init(const RelAttr &left, const RelAttr &right, CompOp comp_op);
+
+  virtual bool filter(const Tuple &tuple, const TupleSchema &tuple_schema) const;
+  virtual bool filter(const Tuple &left_tuple, const TupleSchema &left_schema, 
+                      const Tuple &right_tuple, const TupleSchema &right_schema) const;
+  virtual bool filter(const Record &rec) const {return false;} //nothing to do here
+
+
+private:
+  RelAttr left_;
+  RelAttr right_;
+  CompOp comp_op_ = NO_OP;
+};
+
 class CompositeConditionFilter : public ConditionFilter {
 public:
     CompositeConditionFilter() = default;
     virtual ~CompositeConditionFilter();
 
+
     RC init(const ConditionFilter *filters[], int filter_num);
     RC init(Table &table, const Condition *conditions, int condition_num);
     virtual bool filter(const Record &rec) const;
+
+
+  virtual bool filter(const Tuple &tuple, const TupleSchema &tuple_schema) const;
+
+  virtual bool filter(const Tuple &left_tuple, const TupleSchema &left_schema, 
+                      const Tuple &right_tuple, const TupleSchema &right_schema) const;
 
 public:
     int filter_num() const {

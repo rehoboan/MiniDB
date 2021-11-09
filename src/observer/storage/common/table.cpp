@@ -290,7 +290,6 @@ RC Table::insert_record(Trx *trx, int value_num, const Value *values) {
     LOG_ERROR("Failed to create a record. rc=%d:%s", rc, strrc(rc));
     return rc;
   }
-
   Record record;
   record.data = record_data;
   // record.valid = true;
@@ -763,6 +762,7 @@ RC Table::create_index(Trx *trx, const char *index_name, char *const attribute_n
 
 class RecordUpdater {
 public:
+
     RecordUpdater(Table &table, Trx *trx, const char *attribute_name, const Value *value):value_(value),attribute_name_(attribute_name),table_(table),trx_(trx){
     }
 
@@ -787,12 +787,14 @@ private:
     Table & table_;
     Trx *trx_;
     int updated_count_ = 0;
+  
 };
 
 static RC record_reader_update_adapter(Record *record, void *context) {
   RecordUpdater &record_updater = *(RecordUpdater *)context;
   return record_updater.update_record(record);
 }
+
 
 
 RC Table::update_record(Trx *trx, ConditionFilter *filter, const char *attribute_name, const Value *value,  int *updated_count) {
@@ -820,6 +822,7 @@ RC Table::update_record(Trx *trx, Record *record, const char *attribute_name, co
   Trx::get_record_trx_id(this, *record, record_trx_id, record_deleted);
   if(trx->get_trx_id() == record_trx_id && record_trx_id != 0){
     return RC::RECORD;
+
   }
 
   RC rc = delete_record(trx, record);

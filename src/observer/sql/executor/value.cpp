@@ -142,10 +142,12 @@ void IntValue::set_value(int value){
     value_ = value;
     is_null_ = false;
 }
+
 const void *IntValue::get_value() const{
     const int *value = &value_;
     return value;
 }
+
 int IntValue::get_type() const {
     return type_;
 }
@@ -162,7 +164,7 @@ bool IntValue::is_null() const {
 }
 
 void FloatValue::to_string(std::ostream &os) const {
-    os << value_;
+   os << std::setprecision(2) <<value_;
 }
 
 void FloatValue::set_value(float value){
@@ -171,9 +173,11 @@ void FloatValue::set_value(float value){
 }
 
 const void *FloatValue::get_value() const {
+
     const float *value = &value_;
     return value;
 }
+
 
 int FloatValue::get_type() const {
     return type_;
@@ -194,12 +198,14 @@ void StringValue::to_string(std::ostream &os) const {
 void StringValue::set_value(std::string &value){
     value_.assign(value);
     is_null_ = false;
+
 }
 
 const void *StringValue::get_value() const {
     const std::string *value = &value_;
     return value;
 }
+
 
 int StringValue::get_type() const {
     return type_;
@@ -216,6 +222,7 @@ int StringValue::compare(const TupleValue &other) const {
 bool StringValue::is_null() const {
     return is_null_;
 }
+
 
 
 DateValue::DateValue(time_t value){
@@ -264,12 +271,15 @@ void DateValue::to_string(std::ostream &os) const {
 
 void DateValue::set_value(std::string &value){
     value_.assign(value);
+
     is_null_ = false;
+
 }
 
 void DateValue::set_value(time_t &value){
     value_ = time_t_to_str(value);
     is_null_ = false;
+
 }
 
 const void *DateValue::get_value() const {
@@ -277,21 +287,27 @@ const void *DateValue::get_value() const {
     return value;
 }
 
+
 int DateValue::get_type() const {
+
     return type_;
 }
 
 time_t DateValue::get_value_time_t() const{
+
     if(is_null_){
         return -1;
     }
+
     return str_to_time_t(&value_);
 }
 
 int DateValue::compare(const TupleValue &other) const  {
+
     if(is_null_){
         return -1;
     }
+  
     if(other.get_type() != DATES){
         return -1;
     }
@@ -307,6 +323,8 @@ int DateValue::compare(const TupleValue &other) const  {
     return cmp;
 }
 
+
 bool DateValue::is_null() const {
     return is_null_;
 }
+

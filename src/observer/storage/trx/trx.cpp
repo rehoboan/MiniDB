@@ -67,6 +67,8 @@ RC Trx::insert_record(Table *table, Record *record) {
   return rc;
 }
 
+
+
 RC Trx::delete_record(Table *table, Record *record) {
   RC rc = RC::SUCCESS;
   start_if_not_started();

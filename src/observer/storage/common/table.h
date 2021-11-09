@@ -30,6 +30,7 @@ class Trx;
 
 class Table {
 public:
+
     Table();
     ~Table();
 
@@ -72,6 +73,7 @@ public:
     std::string getText(RID rid);
     RID insertText(const char * text, int len);
     RC deleteText(RID rid);
+
 public:
     const char *name() const;
 
@@ -87,6 +89,7 @@ public:
     RC rollback_delete(Trx *trx, const RID &rid);
 
 private:
+
     RC scan_record(Trx *trx, ConditionFilter *filter, int limit, void *context, RC (*record_reader)(Record *record, void *context));
     RC scan_record_by_index(Trx *trx, IndexScanner *scanner, ConditionFilter *filter, int limit, void *context, RC (*record_reader)(Record *record, void *context));
     IndexScanner *find_index_for_scan(const ConditionFilter *filter);
@@ -95,6 +98,7 @@ private:
     RC insert_record(Trx *trx, Record *record);
     RC update_record(Trx *trx, Record *record, const char *attribute_name, const Value *value);
     RC delete_record(Trx *trx, Record *record);
+
 
 private:
     friend class RecordUpdater;
