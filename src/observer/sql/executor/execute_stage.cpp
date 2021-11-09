@@ -401,7 +401,7 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
   //<aggregation column, agginfo>
   std::vector<std::pair<const char *, AggInfo>> agg_infos;
 
-  bool is_multi_table = true;
+  bool is_multi_table = false;
   //处理带星号的查询,不支持多个属性和*同时出现
   if(selects.attr_num == 1 && strcmp(selects.attributes[0].attribute_name, "*") == 0 &&
       selects.attributes[0].agg_name == nullptr) {
