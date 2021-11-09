@@ -849,7 +849,7 @@ RC check_field(std::unordered_map<const char *, Table *, hash_string, equal_stri
   const FieldMeta *field_meta = table->table_meta().field(attr_name);
   if(field_meta == nullptr) {
     LOG_WARN("No such field. %s.%s", relation_name, attr_name);
-    sprintf(err, "Failure! No such field.\n");
+    sprintf(err, "FAILURE\n");
     session_event->set_response(err);
     return RC::SCHEMA_FIELD_MISSING;
   }
