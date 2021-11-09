@@ -244,7 +244,7 @@ void condition_init(Condition *condition, CompOp comp, int left_is_attr, RelAttr
                     int right_is_attr, RelAttr *right_attr, Value *right_value);
 void condition_destroy(Condition *condition);
 
-void attr_info_init(AttrInfo *attr_info, const char *name, AttrType type, size_t length, bool nullable);
+void attr_info_init(AttrInfo *attr_info, const char *name, int type, size_t length, bool nullable);
 void attr_info_destroy(AttrInfo *attr_info);
 
 void selects_init(Selects *selects, ...);
