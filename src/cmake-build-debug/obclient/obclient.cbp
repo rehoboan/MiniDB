@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CodeBlocks_project_file>
+	<FileVersion major="1" minor="6"/>
+	<Project>
+		<Option title="obclient"/>
+		<Option makefile_is_custom="1"/>
+		<Option compiler="clang"/>
+		<Option virtualFolders="CMake Files\;CMake Files\obclient\;CMake Files\observer\;"/>
+		<Build>
+			<Target title="all">
+				<Option working_dir="/Users/rehoboamw/MiniOB/src/cmake-build-debug/obclient"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/Users/rehoboamw/MiniOB/src/cmake-build-debug/obclient/Makefile&quot;  VERBOSE=1 all"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/Users/rehoboamw/MiniOB/src/cmake-build-debug/obclient/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/Users/rehoboamw/MiniOB/src/cmake-build-debug/obclient/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/Users/rehoboamw/MiniOB/src/cmake-build-debug/obclient/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="obclient">
+				<Option output="/Users/rehoboamw/MiniOB/src/bin/obclient" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/Users/rehoboamw/MiniOB/src/cmake-build-debug/obclient/../../bin"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="clang"/>
+				<Compiler>
+					<Add directory="/Users/rehoboamw/MiniOB/src/obclient/."/>
+					<Add directory="/Users/rehoboamw/MiniOB/src/obclient/../../deps"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/Library/Developer/CommandLineTools/usr/bin/../include/c++/v1"/>
+					<Add directory="/Library/Developer/CommandLineTools/usr/lib/clang/13.0.0/include"/>
+					<Add directory="/Library/Developer/CommandLineTools/usr/include"/>
+					<Add directory="/System/Library/Frameworks"/>
+					<Add directory="/Library/Frameworks"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/Users/rehoboamw/MiniOB/src/cmake-build-debug/obclient/Makefile&quot;  VERBOSE=1 obclient"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/Users/rehoboamw/MiniOB/src/cmake-build-debug/obclient/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/Users/rehoboamw/MiniOB/src/cmake-build-debug/obclient/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/Users/rehoboamw/MiniOB/src/cmake-build-debug/obclient/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="obclient/fast">
+				<Option output="/Users/rehoboamw/MiniOB/src/bin/obclient" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/Users/rehoboamw/MiniOB/src/cmake-build-debug/obclient/../../bin"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="clang"/>
+				<Compiler>
+					<Add directory="/Users/rehoboamw/MiniOB/src/obclient/."/>
+					<Add directory="/Users/rehoboamw/MiniOB/src/obclient/../../deps"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/Library/Developer/CommandLineTools/usr/bin/../include/c++/v1"/>
+					<Add directory="/Library/Developer/CommandLineTools/usr/lib/clang/13.0.0/include"/>
+					<Add directory="/Library/Developer/CommandLineTools/usr/include"/>
+					<Add directory="/System/Library/Frameworks"/>
+					<Add directory="/Library/Frameworks"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/Users/rehoboamw/MiniOB/src/cmake-build-debug/obclient/Makefile&quot;  VERBOSE=1 obclient/fast"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/Users/rehoboamw/MiniOB/src/cmake-build-debug/obclient/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/Users/rehoboamw/MiniOB/src/cmake-build-debug/obclient/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/Users/rehoboamw/MiniOB/src/cmake-build-debug/obclient/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+		</Build>
+		<Unit filename="/Users/rehoboamw/MiniOB/src/obclient/client.cpp">
+			<Option target="obclient"/>
+		</Unit>
+		<Unit filename="/Users/rehoboamw/MiniOB/src/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\"/>
+		</Unit>
+		<Unit filename="/Users/rehoboamw/MiniOB/src/obclient/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\obclient\"/>
+		</Unit>
+		<Unit filename="/Users/rehoboamw/MiniOB/src/observer/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\observer\"/>
+		</Unit>
+	</Project>
+</CodeBlocks_project_file>
