@@ -42,10 +42,15 @@ QUOTE            [\'\"]
 {DOT}                 					         RETURN_TOKEN(DOT);
 "*"                   					         RETURN_TOKEN(STAR);
 [Ee][Xx][Ii][Tt]						             RETURN_TOKEN(EXIT);
+
 [Cc][Oo][Uu][Nn][Tt]							RETURN_TOKEN(COUNT);
 [Mm][Aa][Xx]							RETURN_TOKEN(MAX);
 [Mm][Ii][Nn]								RETURN_TOKEN(MIN);
 [Aa][Vv][Gg]								RETURN_TOKEN(AVG);
+
+[Ii][Nn][Nn][Ee][Rr]							RETURN_TOKEN(INNER);
+[Jj][Oo][Ii][Nn]								RETURN_TOKEN(JOIN);
+
 [Hh][Ee][Ll][Pp]                    	   RETURN_TOKEN(HELP);
 [Dd][Ee][Ss][Cc]                         RETURN_TOKEN(DESC);
 [Cc][Rr][Ee][Aa][Tt][Ee]                 RETURN_TOKEN(CREATE);

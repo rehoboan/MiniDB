@@ -77,6 +77,9 @@ ParserContext *get_context(yyscan_t scanner)
 		MAX
 		MIN
 		AVG
+
+		INNER
+		JOIN
         TABLE
         TABLES
         INDEX
@@ -425,6 +428,19 @@ select:				/*  select 语句的语法解析树*/
 			CONTEXT->select_length=0;
 			CONTEXT->value_length = 0;
 	}
+	|	SELECT select_attr FROM ID join_list where SEMICOLON
+	{
+		selects_append_relation(&CONTEXT->ssql->sstr.selection, $4);
+		selects_append_conditions(&CONTEXT->ssql->sstr.selection, CONTEXT->conditions, CONTEXT->condition_length);
+
+		CONTEXT->ssql->flag = SCF_SELECT;
+
+		//临时变量清0
+		CONTEXT->condition_length = 0;
+		CONTEXT->from_length = 0;
+		CONTEXT->select_length = 0;
+		CONTEXT->value_length = 0;
+	}
 	;
 
 select_attr:
@@ -560,6 +576,12 @@ rel_list:
 				selects_append_relation(&CONTEXT->ssql->sstr.selection, $2);
 		  }
     ;
+join_list:
+	/* empty */
+	| INNER JOIN ID ON condition condition_list {
+		selects_append_relation(&CONTEXT->ssql->sstr.selection, $3);
+	}
+	;
 where:
     /* empty */
     | WHERE condition condition_list {

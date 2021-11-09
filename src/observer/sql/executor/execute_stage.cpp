@@ -40,7 +40,7 @@ struct hash_pair {
     size_t operator()(const std::pair<T1, T2>& p) const{ 
       auto hash1 = std::hash<T1>{}(p.first); 
       auto hash2 = std::hash<T2>{}(p.second);
-      return hash1 ^ hash2; 
+      return hash1 ^ (hash2<<1); 
     } 
 }; 
 struct hash_string { 
@@ -54,12 +54,12 @@ struct hash_string {
     } 
 };
 
-struct equal_pair_string {
-    bool operator()(const std::pair<const char*, const char*> &a, const std::pair<const char*, const char*> &b) const{
-      std::cout<<a.first<<"   "<<b.first<<std::endl;
-    return strcmp(a.first, b.first)==0 && strcmp(a.second,b.second)==0;
-  }
-};
+// struct equal_pair_string {
+//     bool operator()(const std::pair<const char*, const char*> &a, const std::pair<const char*, const char*> &b) const{
+//       std::cout<<a.first<<"   "<<b.first<<std::endl;
+//     return strcmp(a.first, b.first)==0 && strcmp(a.second,b.second)==0;
+//   }
+// };
 
 struct equal_string {
        bool operator()(const char* a,const char* b) const {
@@ -71,7 +71,8 @@ struct equal_string {
 
 using TablePair = std::pair<const char *, const char *>;
 //<<tl,tr>, [conds1, conds2...]>
-using JoinConds = std::unordered_map<TablePair, std::vector<Condition>, hash_pair, equal_pair_string>;
+using JoinConds = std::unordered_map<TablePair, std::vector<Condition>, hash_pair>;
+
 //<tablename, tupleset>     
 //using MapName2Value = std::unordered_map<const char *, TupleSet *, hash_string, equal_string>;
 using MapName2Value = std::unordered_map<const char *, TupleSet *, hash_string, equal_string>;
@@ -893,17 +894,13 @@ void init_join_conditions_between_tables(const Selects &selects, JoinConds &map)
       }
 
       TablePair pair(left_table_name, right_table_name);
-      if(map.find(pair)==map.end()) {
+      if(map.count(pair)==0) {
         std::vector<Condition> v;
         map[pair] = std::move(v);
       }
       map[pair].emplace_back(std::move(new_condition));
-      std::cout<<"join condition1    "<<map.count(pair)<<std::endl;
     }
-    TablePair tmp("t1", "t2");
-    std::cout<<"map size"<<map.count(tmp)<<std::endl;
   }
-  std::cout<<"map size:"<<map.size()<<std::endl;
 }
 void init_kv_between_name_and_value(std::vector<TupleSet> &tuple_sets, 
                     MapName2Value &name2value, MapValue2Name &value2name) {
