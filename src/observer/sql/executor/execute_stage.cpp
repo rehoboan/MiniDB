@@ -625,7 +625,7 @@ const char* create_agg_columns_name(const char *table_name, const char *attr_nam
     strcat(res_part1, ".");
     strcat(res_part1, attr_name);
   } else {
-    strncpy(res_part1, attr_name, strlen(attr_name));
+    strcpy(res_part1, attr_name);
   }
   char *agg_columns_name = new char(strlen(res_part1) + 2 + strlen(agg_name));
   strcpy(agg_columns_name, agg_name);
