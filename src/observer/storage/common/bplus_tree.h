@@ -19,6 +19,7 @@ See the Mulan PSL v2 for more details. */
 #include "storage/default/disk_buffer_pool.h"
 #include "sql/parser/parse_defs.h"
 #include "field_meta.h"
+
 struct IndexFileHeader {
     int attr_num;//属性个数
     int attr_length[MAX_INDEX_FIELD];
