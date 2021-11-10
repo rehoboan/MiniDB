@@ -486,7 +486,7 @@ RC Table::make_record(int value_num, const Value *values, char * &record_out) {
     //text格式
     if(TYPE(field->type()) == TEXTS){
       size_t len = strlen((char *) value.data);
-      RID rid = sys_tbs->insertText((char*)value.data, len < MAX_TEXT_LEN ? len:MAX_TEXT_LEN);
+      RID rid = sys_tbs->insertText((char*)value.data, len < MAX_TEXT_LEN ? len : MAX_TEXT_LEN);
       *(int*)(record + field->offset()) = rid.page_num;
       *(int*)(record + field->offset() + 4) = rid.slot_num;
       //获取
