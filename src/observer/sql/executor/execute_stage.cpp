@@ -605,6 +605,12 @@ void create_select_columns_with_star(const char *db, const Selects &selects,
     }
   }
 }
+
+//char* build_agg_column_name(AggTypeName agg_type, TableName table_name, ColumnName attr_name, bool display_table){
+
+//}
+
+
 const char* create_agg_columns_name(const char *table_name, const char *attr_name, 
                                     const char *agg_name, bool display_table) {
   //display mode: aggname(tablename.attrname)
@@ -615,14 +621,14 @@ const char* create_agg_columns_name(const char *table_name, const char *attr_nam
   //判断是否需要加上table前缀
   char* res_part1 = new char(table_name_len + 1 + strlen(attr_name));
   if(table_name_len && (display_table && strcmp(attr_name, "*")!=0)) {
-    strncpy(res_part1, table_name, table_name_len);
+    strcpy(res_part1, table_name);
     strcat(res_part1, ".");
     strcat(res_part1, attr_name);
   } else {
     strncpy(res_part1, attr_name, strlen(attr_name));
   }
   char *agg_columns_name = new char(strlen(res_part1) + 2 + strlen(agg_name));
-  strncpy(agg_columns_name, agg_name, strlen(agg_name));
+  strcpy(agg_columns_name, agg_name);
   strcat(agg_columns_name, "(");
   strcat(agg_columns_name, res_part1);
   strcat(agg_columns_name, ")");
