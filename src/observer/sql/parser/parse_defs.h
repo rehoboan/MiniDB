@@ -40,7 +40,7 @@ See the Mulan PSL v2 for more details. */
 #define SYS_TEXT_TABLE_COL2 "__TEXT_COL_INT2"
 #define SYS_TEXT_TABLE_COL3 "__TEXT_COL_INT3"
 #define SYS_TEXT_TABLE_COL "__TEXT_COL"
-#define TEXT_LEN (1024)
+#define TEXT_LEN (4096)
 
 #include <stddef.h>
 #include <stdbool.h>

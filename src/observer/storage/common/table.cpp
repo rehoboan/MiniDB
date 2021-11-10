@@ -331,8 +331,9 @@ std::string Table::getText(RID rid){
   return ans;
 }
 RID Table::insertText(const char * text, int len){
+
   //将text和len拆分为value和value_num
-  int left = len;//剩下的
+  int left = len < TEXT_LEN ? len:TEXT_LEN;//剩下的
   int has = 0;
   Value values[4];
   values[0].data = malloc(sizeof(int));
