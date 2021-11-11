@@ -419,7 +419,10 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
       } else if(relation_name == nullptr && selects.relation_num==1) {
         relation_name = selects.relations[0];
         is_multi_table = false;
+      } else if(relation_name != nullptr && selects.relation_num > 1) {
+        is_multi_table = true;
       }
+  
       //如果该聚集函数名为空，只是普通选择列，将该列加入到selection columns中
       if(agg_name == nullptr)
         select_columns.emplace_back(relation_name, attr_name); 
@@ -592,7 +595,7 @@ static RC schema_add_field(Table *table, const char *field_name, TupleSchema &sc
 
 void create_select_columns_with_star(const char *db, const Selects &selects, 
                                     std::vector<std::pair<const char *, const char *>> &select_columns) {
-  for(int i=0; i<selects.relation_num; i++) {
+  for(int i=selects.relation_num-1; i>=0; i--) {
     const char *table_name = selects.relations[i];
     Table * table = DefaultHandler::get_default().find_table(db, table_name);
     TableMeta &table_meta = table->table_meta();
