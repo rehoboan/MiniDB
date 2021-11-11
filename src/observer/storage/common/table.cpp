@@ -331,8 +331,9 @@ std::string Table::getText(RID rid){
   return ans;
 }
 RID Table::insertText(const char * text, int len){
+
   //将text和len拆分为value和value_num
-  int left = len;//剩下的
+  int left = len; //剩下的
   int has = 0;
   Value values[4];
   values[0].data = malloc(sizeof(int));
@@ -484,7 +485,8 @@ RC Table::make_record(int value_num, const Value *values, char * &record_out) {
     }
     //text格式
     if(TYPE(field->type()) == TEXTS){
-      RID rid = sys_tbs->insertText((char*)value.data, strlen((char*)value.data));
+      size_t len = strlen((char *) value.data);
+      RID rid = sys_tbs->insertText((char*)value.data, len < MAX_TEXT_LEN ? len : MAX_TEXT_LEN);
       *(int*)(record + field->offset()) = rid.page_num;
       *(int*)(record + field->offset() + 4) = rid.slot_num;
       //获取

@@ -88,7 +88,7 @@ void value_init_date(Value *value, const char *v) {
     }
 
     if (!valid_date){
-        value->type = UNDEFINED;
+        value->type = INTS;
         return;
     }
 

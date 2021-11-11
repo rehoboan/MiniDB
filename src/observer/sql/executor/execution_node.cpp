@@ -52,13 +52,15 @@ RC SelectExeNode::execute(TupleSet &tuple_set) {
 bool make_tuple(const Tuple& src_tuple, const TupleSchema& src_schema, 
                 const char *target_table_name, TupleField& target_tuple_field,
                 Tuple &res_tuple) {
-  const char *src_table_name = src_schema.field(0).table_name();
-  if(strcmp(src_table_name, target_table_name)==0) {
-    int idx = src_schema.index_of_field(target_table_name, target_tuple_field.field_name());
-    if(idx != -1) {
-      res_tuple.add(src_tuple.get_pointer(idx));
-      return true;
-    }
+  for(TupleField src_field : src_schema.fields()) {
+    const char *src_table_name = src_field.table_name();
+    if(strcmp(src_table_name, target_table_name)==0) {
+      int idx = src_schema.index_of_field(target_table_name, target_tuple_field.field_name());
+      if(idx != -1) {
+        res_tuple.add(src_tuple.get_pointer(idx));
+        return true;
+      }
+    }  
   }
   return false;
 }

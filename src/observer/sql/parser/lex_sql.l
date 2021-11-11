@@ -49,7 +49,7 @@ QUOTE            [\'\"]
 [Aa][Vv][Gg]								RETURN_TOKEN(AVG);
 
 [Ii][Nn][Nn][Ee][Rr]							RETURN_TOKEN(INNER);
-[Jj][Oo][Ii][Nn]								RETURN_TOKEN(JOIN);
+[Jj][Oo][Ii][Nn]						RETURN_TOKEN(JOIN);
 
 [Hh][Ee][Ll][Pp]                    	   RETURN_TOKEN(HELP);
 [Dd][Ee][Ss][Cc]                         RETURN_TOKEN(DESC);

@@ -428,7 +428,7 @@ select:				/*  select 语句的语法解析树*/
 			CONTEXT->select_length=0;
 			CONTEXT->value_length = 0;
 	}
-	|	SELECT select_attr FROM ID join_list where SEMICOLON
+	| SELECT select_attr FROM ID join_list where SEMICOLON
 	{
 		selects_append_relation(&CONTEXT->ssql->sstr.selection, $4);
 		selects_append_conditions(&CONTEXT->ssql->sstr.selection, CONTEXT->conditions, CONTEXT->condition_length);
@@ -442,6 +442,7 @@ select:				/*  select 语句的语法解析树*/
 		CONTEXT->value_length = 0;
 	}
 	;
+
 
 select_attr:
     STAR {
@@ -578,7 +579,7 @@ rel_list:
     ;
 join_list:
 	/* empty */
-	| INNER JOIN ID ON condition condition_list {
+	| INNER JOIN ID ON condition condition_list join_list {
 		selects_append_relation(&CONTEXT->ssql->sstr.selection, $3);
 	}
 	;

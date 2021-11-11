@@ -402,7 +402,7 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
   //<aggregation column, agginfo>
   std::vector<std::pair<const char *, AggInfo>> agg_infos;
 
-  bool is_multi_table = true;
+  bool is_multi_table = false;
   //处理带星号的查询,不支持多个属性和*同时出现
   if(selects.attr_num == 1 && strcmp(selects.attributes[0].attribute_name, "*") == 0 &&
       selects.attributes[0].agg_name == nullptr) {
@@ -420,7 +420,10 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
       } else if(relation_name == nullptr && selects.relation_num==1) {
         relation_name = selects.relations[0];
         is_multi_table = false;
+      } else if(relation_name != nullptr && selects.relation_num > 1) {
+        is_multi_table = true;
       }
+  
       //如果该聚集函数名为空，只是普通选择列，将该列加入到selection columns中
       if(agg_name == nullptr)
         select_columns.emplace_back(relation_name, attr_name); 
@@ -593,7 +596,7 @@ static RC schema_add_field(Table *table, const char *field_name, TupleSchema &sc
 
 void create_select_columns_with_star(const char *db, const Selects &selects, 
                                     std::vector<std::pair<const char *, const char *>> &select_columns) {
-  for(int i=0; i<selects.relation_num; i++) {
+  for(int i=selects.relation_num-1; i>=0; i--) {
     const char *table_name = selects.relations[i];
     Table * table = DefaultHandler::get_default().find_table(db, table_name);
     TableMeta &table_meta = table->table_meta();
@@ -606,6 +609,12 @@ void create_select_columns_with_star(const char *db, const Selects &selects,
     }
   }
 }
+
+//char* build_agg_column_name(AggTypeName agg_type, TableName table_name, ColumnName attr_name, bool display_table){
+
+//}
+
+
 const char* create_agg_columns_name(const char *table_name, const char *attr_name, 
                                     const char *agg_name, bool display_table) {
   //display mode: aggname(tablename.attrname)
@@ -616,14 +625,14 @@ const char* create_agg_columns_name(const char *table_name, const char *attr_nam
   //判断是否需要加上table前缀
   char* res_part1 = new char(table_name_len + 1 + strlen(attr_name));
   if(table_name_len && (display_table && strcmp(attr_name, "*")!=0)) {
-    strncpy(res_part1, table_name, table_name_len);
+    strcpy(res_part1, table_name);
     strcat(res_part1, ".");
     strcat(res_part1, attr_name);
   } else {
-    strncpy(res_part1, attr_name, strlen(attr_name));
+    strcpy(res_part1, attr_name);
   }
   char *agg_columns_name = new char(strlen(res_part1) + 2 + strlen(agg_name));
-  strncpy(agg_columns_name, agg_name, strlen(agg_name));
+  strcpy(agg_columns_name, agg_name);
   strcat(agg_columns_name, "(");
   strcat(agg_columns_name, res_part1);
   strcat(agg_columns_name, ")");
@@ -850,7 +859,7 @@ RC check_field(std::unordered_map<const char *, Table *, hash_string, equal_stri
   const FieldMeta *field_meta = table->table_meta().field(attr_name);
   if(field_meta == nullptr) {
     LOG_WARN("No such field. %s.%s", relation_name, attr_name);
-    sprintf(err, "Failure! No such field.\n");
+    sprintf(err, "FAILURE\n");
     session_event->set_response(err);
     return RC::SCHEMA_FIELD_MISSING;
   }

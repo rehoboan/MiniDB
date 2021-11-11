@@ -27,7 +27,7 @@ See the Mulan PSL v2 for more details. */
 #define MAX_NUM 20
 #define MAX_ROW 50
 #define MAX_VALUE_NUM (MAX_NUM*MAX_ROW)
-#define MAX_INDEX_FIELD 10
+#define MAX_INDEX_FIELD (10)
 #define MAX_REL_NAME 20
 #define MAX_ATTR_NAME 20
 #define MAX_ERROR_MESSAGE 20
@@ -40,7 +40,8 @@ See the Mulan PSL v2 for more details. */
 #define SYS_TEXT_TABLE_COL2 "__TEXT_COL_INT2"
 #define SYS_TEXT_TABLE_COL3 "__TEXT_COL_INT3"
 #define SYS_TEXT_TABLE_COL "__TEXT_COL"
-#define TEXT_LEN (2*1000)
+#define TEXT_LEN (2000)
+#define MAX_TEXT_LEN (4096)
 
 #include <stddef.h>
 #include <stdbool.h>
