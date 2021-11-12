@@ -54,6 +54,7 @@ private:
   PageNum  page_num_;
   SlotNum  slot_num_;
 };
+
 class OperationHasher {
 public:
   size_t operator() (const Operation &op) const {

@@ -11,6 +11,7 @@ See the Mulan PSL v2 for more details. */
 //
 // Created by Longda on 2021/4/13.
 //
+
 #include "storage/common/record_manager.h"
 #include "rc.h"
 #include "common/log/log.h"
@@ -73,13 +74,13 @@ RC RecordPageHandler::init(DiskBufferPool &buffer_pool, int file_id, PageNum pag
              file_id, page_num);
     return RC::RECORD_OPENNED;
   }
-
+//加载对应pagenum的page，初始化page_handle（buffer中该页对应的frame指针，open状态）
   RC ret = RC::SUCCESS;
   if ((ret = buffer_pool.get_this_page(file_id, page_num, &page_handle_)) != RC::SUCCESS) {
     LOG_ERROR("Failed to get page handle from disk buffer pool. ret=%d:%s", ret, strrc(ret));
     return ret;
   }
-
+//拿到该页对应的数据，实际上是page_header+bitmap
   char *data;
   ret = buffer_pool.get_data(&page_handle_, &data);
   if (ret != RC::SUCCESS) {
@@ -157,7 +158,7 @@ RC RecordPageHandler::insert_record(const char *data, RID *rid) {
   char *record_data = page_handle_.frame->page.data +
       page_header_->first_record_offset + (index * page_header_->record_size);
   memcpy(record_data, data, page_header_->record_real_size);
-
+//insert 之后，修改该页为脏页
   RC rc = disk_buffer_pool_->mark_dirty(&page_handle_);
   if (rc != RC::SUCCESS) {
     LOG_ERROR("Failed to mark page dirty. rc =%d:%s", rc, strrc(rc));
@@ -300,6 +301,7 @@ RC RecordPageHandler::get_next_record(Record *rec) {
 
   char *record_data = page_handle_.frame->page.data +
       page_header_->first_record_offset + (index * page_header_->record_size);
+  
   rec->data = record_data;
   return RC::SUCCESS;
 }
@@ -348,13 +350,14 @@ RC RecordFileHandler::insert_record(const char *data, int record_size, RID *rid)
   RC ret = RC::SUCCESS;
   // 找到没有填满的页面 
   int page_count = 0;
+  
   if ((ret = disk_buffer_pool_->get_page_count(file_id_, &page_count)) != RC::SUCCESS) {
     LOG_ERROR("Failed to get page count while inserting record");
     return ret;
   }
 
   PageNum current_page_num = record_page_handler_.get_page_num();
-  if (current_page_num < 0) {
+  if (current_page_num < 0) {  //该page_handle还没有初始化（可能没加载到内存，可能已经在buffer但是还没初始化）
     if (page_count >= 2) { // 当前buffer pool 有页面时才尝试加载第一页
       // 参考diskBufferPool，pageNum从1开始
       if ((ret = record_page_handler_.init(*disk_buffer_pool_, file_id_, 1)) != RC::SUCCESS) {
@@ -362,17 +365,16 @@ RC RecordFileHandler::insert_record(const char *data, int record_size, RID *rid)
         return ret;
       }
       current_page_num = record_page_handler_.get_page_num();
-    } else {
+    } else {//当前文件还没有被加载进来
       current_page_num = 0;
     }
   }
-
   bool page_found = false;
   for (int i = 0; i < page_count; i++) {
     current_page_num = (current_page_num + i) % page_count; // 从当前打开的页面开始查找
     if (current_page_num == 0) {
       continue;
-    }
+    }//分别加载并打开每个页，如果该页没满，就从该页插进去
     if (current_page_num != record_page_handler_.get_page_num()) {
       record_page_handler_.deinit();
       ret = record_page_handler_.init(*disk_buffer_pool_, file_id_, current_page_num);
@@ -388,7 +390,7 @@ RC RecordFileHandler::insert_record(const char *data, int record_size, RID *rid)
     }
   }
 
-  // 找不到就分配一个新的页面
+  // buffer中现有的page找不到一个空闲页，就分配一个新的页面
   if (!page_found) {
     BPPageHandle page_handle;
     if ((ret = disk_buffer_pool_->allocate_page(file_id_, &page_handle)) != RC::SUCCESS) {
@@ -396,7 +398,7 @@ RC RecordFileHandler::insert_record(const char *data, int record_size, RID *rid)
                 file_id_, ret);
       return ret;
     }
-
+//分配之后，加载并打开该空页
     current_page_num = page_handle.frame->page.page_num;
     record_page_handler_.deinit();
     ret = record_page_handler_.init_empty_page(*disk_buffer_pool_, file_id_, current_page_num, record_size);
@@ -412,7 +414,7 @@ RC RecordFileHandler::insert_record(const char *data, int record_size, RID *rid)
     }
   }
 
-  // 找到空闲位置
+  // 找到空闲页后，从该页中找到空闲位置。
   return record_page_handler_.insert_record(data, rid);
 }
 

@@ -21,6 +21,13 @@ See the Mulan PSL v2 for more details. */
 #include "sql/parser/parse.h"
 #include "sql/executor/value.h"
 
+#include <storage/common/record_manager.h>
+#include "storage/common/db.h"
+
+#include "storage/common/table.h"
+#include "common/log/log.h"
+
+
 class Table;
 
 class Tuple {
@@ -38,6 +45,7 @@ public:
   void add(const std::shared_ptr<TupleValue> &other);
   void add(int value);
   void add(float value);
+  void add();
   void add(const char *s, int len);
   void add(time_t value);
 
@@ -63,11 +71,11 @@ private:
 
 class TupleField {
 public:
-  TupleField(AttrType type, const char *table_name, const char *field_name) :
+  TupleField(int type, const char *table_name, const char *field_name) :
           type_(type), table_name_(table_name), field_name_(field_name){
   }
 
-  AttrType  type() const{
+  int type() const{
     return type_;
   }
 
@@ -80,7 +88,7 @@ public:
 
   std::string to_string() const;
 private:
-  AttrType  type_;
+  int  type_;
   std::string table_name_;
   std::string field_name_;
 };
@@ -90,8 +98,9 @@ public:
   TupleSchema() = default;
   ~TupleSchema() = default;
 
-  void add(AttrType type, const char *table_name, const char *field_name);
-  void add_if_not_exists(AttrType type, const char *table_name, const char *field_name);
+  void add(int type, const char *table_name, const char *field_name);
+//  void add_if_not_exists(AttrType type, const char *table_name, const char *field_name);
+  void add_if_not_exists(int type, const char *table_name, const char *field_name);
   // void merge(const TupleSchema &other);
   void append(const TupleSchema &other);
 
@@ -110,9 +119,11 @@ public:
 
   void print(std::ostream &os) const;
 public:
-  static void from_table(const Table *table, TupleSchema &schema);
+  static void from_table(Table *table, TupleSchema &schema);
 private:
   std::vector<TupleField> fields_;
+
+
 };
 
 class TupleSet {
@@ -139,6 +150,7 @@ public:
   const std::vector<Tuple> &tuples() const;
 
   void print(std::ostream &os) const;
+  void print(std::ostream &os, std::vector<std::pair<const char *, const char *>> &select_columns, bool is_multi_table);
 public:
   const TupleSchema &schema() const {
     return schema_;
