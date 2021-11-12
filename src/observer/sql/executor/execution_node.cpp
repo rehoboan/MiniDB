@@ -234,7 +234,7 @@ RC AggregationExeNode::execute(Tuple &tuple, std::vector<const char *> &agg_colu
         default:
           break;
       }
-//todo  int_value 设为 null value
+      value.values.int_value = NULL_VALUE;
     }
     res.push_back(value);
 
@@ -245,7 +245,6 @@ RC AggregationExeNode::execute(Tuple &tuple, std::vector<const char *> &agg_colu
   }
   //执行聚合操作  对每一个元组为单位进行操作
   const std::vector<Tuple> &tuples = table_->tuples();
-  bool is_init = false;
   for(const Tuple &tuple : tuples) {
     for(int i=0; i<agg_infos_.size(); i++) {
       std::pair<const char *, AggInfo> pair = agg_infos_[i];
@@ -253,24 +252,32 @@ RC AggregationExeNode::execute(Tuple &tuple, std::vector<const char *> &agg_colu
       AggType type = pair.second.type;
       int idx = map[agg_column_name];
       if(idx == -1) {
-        //count in full column
-        rc  = count(res[i]);
+        //count in star mode
+        rc  = count(res[i], false);
       } else {
         //get tuple value
         const TupleValue &tuple_value = tuple.get(idx);
+        if(type == AVGS){
+          if(!tuple_value.is_null()) {
+            avg_count[agg_column_name] += 1;
+          }
+        }
         switch(type){
-          case COUNTS:
-            rc = count(res[i]);
+          case COUNTS: {
+            if(!tuple_value.is_null())
+              rc = count(res[i], false);
+            else 
+              rc = count(res[i], true);            
+          }
           break;
           case MAXS:
-            rc = max(tuple_value, res[i], is_init);
+            rc = max(tuple_value, res[i]);
           break;
           case MINS:
-            rc = min(tuple_value, res[i], is_init);
+            rc = min(tuple_value, res[i]);
           break;
           case AVGS: {
-            avg_count[agg_column_name] += 1;
-            rc = avg(tuple_value, res[i], avg_count[agg_column_name], is_init);
+            rc = avg(tuple_value, res[i], avg_count[agg_column_name]);
           break;
           }
           default:
@@ -279,7 +286,6 @@ RC AggregationExeNode::execute(Tuple &tuple, std::vector<const char *> &agg_colu
         }
       }
     }
-    if(!is_init) is_init = true;
   }
 
   if(rc != RC::SUCCESS)
@@ -291,7 +297,12 @@ RC AggregationExeNode::execute(Tuple &tuple, std::vector<const char *> &agg_colu
     AggValue agg_value = res[i];
     const char * agg_column_name = agg_infos_[i].first;
     agg_columns.push_back(agg_column_name);
+    bool is_init = (agg_value.values.int_value != NULL_VALUE);
 
+    if(!is_init){
+      //聚合列都是null时，聚合函数的结果为null
+      tuple.add();
+    }
     switch(agg_value.value_idx) {
       case 1:{ //int
         tuple.add(agg_value.values.int_value);
@@ -337,154 +348,169 @@ RC AggregationExeNode::init_index_map(std::unordered_map<const char *, int> &map
   return RC::SUCCESS; 
 }
 //todo 考虑date
-RC AggregationExeNode::max(const TupleValue &value, AggValue &res, bool is_init) {
+RC AggregationExeNode::max(const TupleValue &value, AggValue &res) {
+  bool is_init = (res.values.int_value != NULL_VALUE);
   int type = value.get_type();
 
-  switch(type){
-    case INTS:{
-      int value_int = *(int *)value.get_value();
-      if(is_init) {
-        res.values.int_value = std::max(res.values.int_value, value_int);  
-      } else {
-        res.values.int_value = value_int;
-      }
-    }
-    break;
-    case FLOATS:{
-      float value_float = *(float *)value.get_value();
-      if(is_init) {
-        res.values.float_value = std::max(res.values.float_value, value_float);
-      } else {
-        res.values.float_value = value_float;
-      }
-    }
-    break;
-    case CHARS:{
-      const char * value_char = ((std::string *)value.get_value())->c_str();
-      if(is_init){
-        if(strcmp(value_char, res.values.string_value) > 0) {
-          res.values.string_value = value_char;
+  if(!value.is_null()){
+    switch(type){
+      case INTS:{
+        int value_int = *(int *)value.get_value();
+        if(is_init) {
+          res.values.int_value = std::max(res.values.int_value, value_int);  
+        } else {
+          res.values.int_value = value_int;
         }
-      }else {
-        res.values.string_value = value_char;
       }
-    }
-    break;
-    case DATES:{
-      time_t value_time = ((const DateValue&)value).get_value_time_t();
-      if(is_init){
-        if(value_time > res.values.date_value) {
-          res.values.date_value = value_time;
-        }
-      } else {
-        res.values.date_value = value_time;
-      }
-    }
-    break;
-    default:
-      return RC::MISUSE;
-  }
-  return RC::SUCCESS;
-}
-
-
-RC AggregationExeNode::min(const TupleValue &value, AggValue &res, bool is_init) {
-  int type = value.get_type();
-
-  switch(type){
-    case INTS:{
-      int value_int = *(int *)value.get_value();
-      if(is_init) {
-        res.values.int_value = std::min(res.values.int_value, value_int);          
-      } else {
-        res.values.int_value = value_int;
-      }
-    }
-    break;
-    case FLOATS:{
-      float value_float = *(float *)value.get_value();
-      if(is_init) {
-        res.values.float_value = std::min(res.values.float_value, value_float);        
-      } else {
-        res.values.float_value = value_float;
-      }
-    }
-    break;
-    case CHARS:{
-      const char * value_char = ((std::string *)value.get_value())->c_str();
-      if(is_init) {
-        if(strcmp(value_char, res.values.string_value) < 0) {
-          res.values.string_value = value_char;
-        }        
-      } else {
-        res.values.string_value = value_char;
-      }
-
-    }
-    break;
-    case DATES:{
-      time_t value_time = ((const DateValue&)value).get_value_time_t();
-      if(is_init){
-        if(value_time < res.values.date_value) {
-          res.values.date_value = value_time;
-        }
-      } else {
-        res.values.date_value = value_time;
-      }      
-    }
-    break;
-    default:
-    return RC::MISUSE;
-  }
-  return RC::SUCCESS;
-}
-
-RC AggregationExeNode::count(AggValue &res) {
-  res.values.int_value += 1;
-  return RC::SUCCESS;
-}
-
-RC AggregationExeNode::avg(const TupleValue &value, AggValue &res, int size, bool is_init){
-  int type = value.get_type();
-  
-  switch(type){
-    case INTS:{
-      int value_int = *(int *)value.get_value();
-      if(is_init) {
-        res.values.float_value = (res.values.float_value * (size - 1) + value_int) / size;
-      } else {
-        res.values.float_value = (float)value_int;
-      }
-    }
-    break;
-
-    case FLOATS:{
-      int value_float = *(float  *)value.get_value();
-      if(is_init){
-        res.values.float_value = (res.values.float_value * (size -1) + value_float) / size;
-      } else {
-        res.values.float_value = value_float;
-      }
-    }
-    break;
-
-    case CHARS:{
-      //char 不支持avg操作
-      return RC::MISUSE;
-    }
-    break;
-    case DATES:{
-      time_t value_time = ((const DateValue&)value).get_value_time_t();
-      if(is_init){
-        res.values.date_value = (res.values.date_value * (size-1) + value_time) / size;
-      } else {
-        res.values.date_value = value_time;
-      }
-    }
-    break;
-    default:
       break;
+      case FLOATS:{
+        float value_float = *(float *)value.get_value();
+        if(is_init) {
+          res.values.float_value = std::max(res.values.float_value, value_float);
+        } else {
+          res.values.float_value = value_float;
+        }
+      }
+      break;
+      case CHARS:{
+        const char * value_char = ((std::string *)value.get_value())->c_str();
+        if(is_init){
+          if(strcmp(value_char, res.values.string_value) > 0) {
+            res.values.string_value = value_char;
+          }
+        }else {
+          res.values.string_value = value_char;
+        }
+      }
+      break;
+      case DATES:{
+        time_t value_time = ((const DateValue&)value).get_value_time_t();
+        if(is_init){
+          if(value_time > res.values.date_value) {
+            res.values.date_value = value_time;
+          }
+        } else {
+          res.values.date_value = value_time;
+        }
+      }
+      break;
+      default:
+        return RC::MISUSE;
+    }    
   }
+
+
+  return RC::SUCCESS;
+}
+
+
+RC AggregationExeNode::min(const TupleValue &value, AggValue &res) {
+  bool is_init = (res.values.int_value != NULL_VALUE);
+  int type = value.get_type();
+
+  if(!value.is_null()){
+    switch(type){
+      case INTS:{
+        int value_int = *(int *)value.get_value();
+        if(is_init) {
+          res.values.int_value = std::min(res.values.int_value, value_int);          
+        } else {
+          res.values.int_value = value_int;
+        }
+      }
+      break;
+      case FLOATS:{
+        float value_float = *(float *)value.get_value();
+        if(is_init) {
+          res.values.float_value = std::min(res.values.float_value, value_float);        
+        } else {
+          res.values.float_value = value_float;
+        }
+      }
+      break;
+      case CHARS:{
+        const char * value_char = ((std::string *)value.get_value())->c_str();
+        if(is_init) {
+          if(strcmp(value_char, res.values.string_value) < 0) {
+            res.values.string_value = value_char;
+          }        
+        } else {
+          res.values.string_value = value_char;
+        }
+
+      }
+      break;
+      case DATES:{
+        time_t value_time = ((const DateValue&)value).get_value_time_t();
+        if(is_init){
+          if(value_time < res.values.date_value) {
+            res.values.date_value = value_time;
+          }
+        } else {
+          res.values.date_value = value_time;
+        }      
+      }
+      break;
+      default:
+      return RC::MISUSE;
+    }    
+  }
+  return RC::SUCCESS;
+}
+
+RC AggregationExeNode::count(AggValue &res, bool is_null){
+  if(!is_null){
+    res.values.int_value += 1;
+  }
+
+  return RC::SUCCESS;
+}
+
+
+RC AggregationExeNode::avg(const TupleValue &value, AggValue &res, int size){
+  bool is_init = (res.values.int_value != NULL_VALUE);
+  int type = value.get_type();
+  if(!value.is_null()){
+    switch(type){
+      case INTS:{
+        int value_int = *(int *)value.get_value();
+        if(is_init) {
+          res.values.float_value = (res.values.float_value * (size - 1) + value_int) / size;
+        } else {
+          res.values.float_value = (float)value_int;
+        }
+      }
+      break;
+
+      case FLOATS:{
+        int value_float = *(float  *)value.get_value();
+        if(is_init){
+          res.values.float_value = (res.values.float_value * (size -1) + value_float) / size;
+        } else {
+          res.values.float_value = value_float;
+        }
+      }
+      break;
+
+      case CHARS:{
+        //char 不支持avg操作
+        return RC::MISUSE;
+      }
+      break;
+      case DATES:{
+        time_t value_time = ((const DateValue&)value).get_value_time_t();
+        if(is_init){
+          res.values.date_value = (res.values.date_value * (size-1) + value_time) / size;
+        } else {
+          res.values.date_value = value_time;
+        }
+      }
+      break;
+      default:
+        break;
+    }    
+  }
+
   return RC::SUCCESS;
 }
 
