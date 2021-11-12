@@ -154,6 +154,7 @@ RC Db::open_all_tables() {
 
     //创建该系统表
     sys_tbs = opened_tables_[SYS_TEXT_TABLE_NAME];
+
   }else{
     sys_tbs = opened_tables_[SYS_TEXT_TABLE_NAME];
   }
