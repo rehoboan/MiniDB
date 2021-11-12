@@ -151,6 +151,7 @@ RC Db::open_all_tables() {
     attr[3].length = TEXT_LEN;
     attr[3].type = CHARS;
     create_table(SYS_TEXT_TABLE_NAME, 4, attr);
+
     //创建该系统表
     sys_tbs = opened_tables_[SYS_TEXT_TABLE_NAME];
   }else{
