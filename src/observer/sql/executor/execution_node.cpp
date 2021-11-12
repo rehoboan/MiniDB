@@ -303,29 +303,31 @@ RC AggregationExeNode::execute(Tuple &tuple, std::vector<const char *> &agg_colu
       //聚合列都是null时，聚合函数的结果为null
       tuple.add();
     }
-    switch(agg_value.value_idx) {
-      case 1:{ //int
-        tuple.add(agg_value.values.int_value);
-      }
-      break;
-      case 2: { //float
-        tuple.add(agg_value.values.float_value);
-      }
-      break;
-      case 3: { //string
-        tuple.add(agg_value.values.string_value, 
-                strlen(agg_value.values.string_value));
-      }
-      break;
-      case 5: {//dates
-        tuple.add(agg_value.values.date_value);
-      }
+    else {
+      switch(agg_value.value_idx) {
+        case 1:{ //int
+          tuple.add(agg_value.values.int_value);
+        }
+        break;
+        case 2: { //float
+          tuple.add(agg_value.values.float_value);
+        }
+        break;
+        case 3: { //string
+          tuple.add(agg_value.values.string_value, 
+                  strlen(agg_value.values.string_value));
+        }
+        break;
+        case 5: {//dates
+          tuple.add(agg_value.values.date_value);
+        }
 
-      default:
-      break;
+        default:
+        break;
+      }      
     }
-    
   }
+  
   return rc;
 }
 
