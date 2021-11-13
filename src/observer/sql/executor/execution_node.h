@@ -95,10 +95,10 @@ public:
   RC execute(Tuple &tuple, std::vector<const char *> &agg_columns);
 private:
   RC init_index_map(std::unordered_map<const char *, int> &map);
-  RC max(const TupleValue &value, AggValue &res, bool is_init);
-  RC min(const TupleValue &value, AggValue &res, bool is_init);
-  RC count(AggValue &res);
-  RC avg(const TupleValue &value, AggValue &res, int size, bool is_init);
+  RC max(const TupleValue &value, AggValue &res);
+  RC min(const TupleValue &value, AggValue &res);
+  RC count(AggValue &res, bool is_null);
+  RC avg(const TupleValue &value, AggValue &res, int size);
 
 
 private:

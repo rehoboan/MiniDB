@@ -212,7 +212,7 @@ int StringValue::get_type() const {
 }
 
 int StringValue::compare(const TupleValue &other) const {
-    if(other.get_type() != CHARS){
+    if(other.get_type() != CHARS || is_null_){
         return -1;
     }
     return compare_data(type_, (char *)(((std::string *)get_value())->c_str()),
