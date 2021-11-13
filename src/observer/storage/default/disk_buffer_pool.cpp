@@ -277,7 +277,6 @@ RC DiskBufferPool::get_this_page(int file_id, PageNum page_num, BPPageHandle *pa
     }
   }
 
-
   // 如果这个page没有被加载到内存，就将其加载到内存（allocate_block+load_page)
 //走到这里说明没找到（没有load进来），分配一个额外的块，同样初始化page_handle元信息,然后把页面load进来
 
