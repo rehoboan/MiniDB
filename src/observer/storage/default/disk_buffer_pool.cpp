@@ -149,7 +149,7 @@ RC DiskBufferPool::open_file(const char *file_name, int *file_id)
   file_handle->file_desc = fd;
 
   // 为文件分配好在内存中frame的位置
-  if ((tmp = allocate_block(&file_handle->hdr_frame)) != RC::SUCCESS) {
+  if ((tmp = allocate_block(&file_handle->hdr_frame,fd,0)) != RC::SUCCESS) {
       // 创建了file_handle 这个BPFileHandle 时就为其中hdr_frame成员变量有了空间，allocate应该是要将头部进行对应
     LOG_ERROR("Failed to allocate block for %s's BPFileHandle.", file_name);
     delete file_handle;
@@ -257,31 +257,43 @@ RC DiskBufferPool::get_this_page(int file_id, PageNum page_num, BPPageHandle *pa
   }
 
 
-  // 如果这个page已经加载到内存了了，找到打开的frame，记录在page_handle中
-
+    // 如果这个page已经加载到内存了了，找到打开的frame，记录在page_handle中
 //找到分配过的frame且为对应文件的页面，若该页面的page_num正好为要找的page_num(已经被load进来)，初始化page_handle
 
-  for (int i = 0; i < BP_BUFFER_SIZE; i++) {
-    if (!bp_manager_.allocated[i])
-      continue;
-    if (bp_manager_.frame[i].file_desc != file_handle->file_desc)
-      continue;
-
-    // This page has been loaded.
-    if (bp_manager_.frame[i].page.page_num == page_num) {
-      page_handle->frame = bp_manager_.frame + i;
-      page_handle->frame->pin_count++;
-      page_handle->frame->acc_time = current_time();
-      page_handle->open = true;
-      return RC::SUCCESS;
+    int file_desc=file_handle->file_desc;
+    FrameKey framekey=FrameKey(file_desc,page_num);
+    if (bp_manager_.lru_hash.find(framekey)!=bp_manager_.lru_hash.end()){
+        // 说明在内存中已经有了这个页面
+        int index=bp_manager_.lru_hash[framekey]->index;
+        page_handle->frame=bp_manager_.frame+index;
+        page_handle->frame->pin_count++;
+        page_handle->frame->acc_time=current_time();
+        page_handle->open=true;
+        return RC::SUCCESS;
     }
-  }
+
+//    for (int i = 0; i < BP_BUFFER_SIZE; i++) {
+//    if (!bp_manager_.allocated[i])
+//      continue;
+//    if (bp_manager_.frame[i].file_desc != file_handle->file_desc)
+//      continue;
+//
+//
+//    // This page has been loaded.
+//    if (bp_manager_.frame[i].page.page_num == page_num) {
+//      page_handle->frame = bp_manager_.frame + i;
+//      page_handle->frame->pin_count++;
+//      page_handle->frame->acc_time = current_time();
+//      page_handle->open = true;
+//      return RC::SUCCESS;
+//    }
+//  }
 
   // 如果这个page没有被加载到内存，就将其加载到内存（allocate_block+load_page)
 //走到这里说明没找到（没有load进来），分配一个额外的块，同样初始化page_handle元信息,然后把页面load进来
 
   // Allocate one page and load the data into this page
-  if ((tmp = allocate_block(&(page_handle->frame))) != RC::SUCCESS) {
+  if ((tmp = allocate_block(&(page_handle->frame),file_handle->file_desc,page_num)) != RC::SUCCESS) {
     LOG_ERROR("Failed to load page %s:%d, due to failed to alloc page.", file_handle->file_name, page_num);
     return tmp;
   }
@@ -331,7 +343,7 @@ RC DiskBufferPool::allocate_page(int file_id, BPPageHandle *page_handle)
     }
   }
 
-  if ((tmp = allocate_block(&(page_handle->frame))) != RC::SUCCESS) {
+  if ((tmp = allocate_block(&(page_handle->frame),file_handle->file_desc,file_handle->file_sub_header->page_count)) != RC::SUCCESS) {
     LOG_ERROR("Failed to allocate page %s, due to no free page.", file_handle->file_name);
     return tmp;
   }
@@ -412,19 +424,32 @@ RC DiskBufferPool::dispose_page(int file_id, PageNum page_num)
     return rc;
   }
 
-  for (int i = 0; i < BP_BUFFER_SIZE; i++) {
-    if (!bp_manager_.allocated[i])
-      continue;
-    if (bp_manager_.frame[i].file_desc != file_handle->file_desc) {
-      continue;
-    }
-
-    if (bp_manager_.frame[i].page.page_num == page_num) {
-      if (bp_manager_.frame[i].pin_count != 0)
-        return RC::BUFFERPOOL_PAGE_PINNED;
-      bp_manager_.allocated[i] = false;
-    }
+  int file_desc=file_handle->file_desc;
+  FrameKey deletekey=FrameKey(file_desc,page_num);
+  Node* deletenode=bp_manager_.lru_hash[deletekey];
+  int index=deletenode->index;
+  if(bp_manager_.frame[index].pin_count!=0){
+      return RC::BUFFERPOOL_PAGE_PINNED;
   }
+  bp_manager_.allocated[index]=false;
+  bp_manager_.lru_list->delete_node(deletenode);
+  bp_manager_.lru_hash.erase(deletekey);
+  bp_manager_.allocated_num--;
+  bp_manager_.free_blocks.push_back(index);
+
+//  for (int i = 0; i < BP_BUFFER_SIZE; i++) {
+//    if (!bp_manager_.allocated[i])
+//      continue;
+//    if (bp_manager_.frame[i].file_desc != file_handle->file_desc) {
+//      continue;
+//    }
+//
+//    if (bp_manager_.frame[i].page.page_num == page_num) {
+//      if (bp_manager_.frame[i].pin_count != 0)
+//        return RC::BUFFERPOOL_PAGE_PINNED;
+//      bp_manager_.allocated[i] = false;
+//    }
+//  }
 
   file_handle->hdr_frame->dirty = true;
   file_handle->file_sub_header->allocated_pages--;
@@ -456,34 +481,61 @@ RC DiskBufferPool::force_page(int file_id, PageNum page_num)
  */
 RC DiskBufferPool::force_page(BPFileHandle *file_handle, PageNum page_num)
 {
-  int i;
-  for (i = 0; i < BP_BUFFER_SIZE; i++) {
-    if (!bp_manager_.allocated[i])
-      continue;
-
-    Frame *frame = &bp_manager_.frame[i];
-    if (frame->file_desc != file_handle->file_desc)
-      continue;
-    if (frame->page.page_num != page_num && page_num != -1) {
-      continue;
+    if(page_num==-1){
+        return RC::SUCCESS;
     }
-
-    if (frame->pin_count != 0) {
-      LOG_ERROR("Page :%s:%d has been pinned.", file_handle->file_name, page_num);
-      return RC::BUFFERPOOL_PAGE_PINNED;
+    FrameKey forcekey=FrameKey(file_handle->file_desc,page_num);
+    Node* forcenode=bp_manager_.lru_hash[forcekey];
+    int index=forcenode->index;
+    Frame* frame=&bp_manager_.frame[index];
+    if(frame->pin_count!=0){
+        LOG_ERROR("Page :%s:%d has been pinned.", file_handle->file_name, page_num);
+        return RC::BUFFERPOOL_PAGE_PINNED;
     }
-
-    if (frame->dirty) {
-      RC rc = RC::SUCCESS;
-      if ((rc = flush_block(frame)) != RC::SUCCESS) {
-        LOG_ERROR("Failed to flush page:%s:%d.", file_handle->file_name, page_num);
-        return rc;
-      }
+    if(frame->dirty){
+        RC rc = RC::SUCCESS;
+        if ((rc = flush_block(frame)) != RC::SUCCESS) {
+            LOG_ERROR("Failed to flush page:%s:%d.", file_handle->file_name, page_num);
+            return rc;
+        }
     }
-    bp_manager_.allocated[i] = false;
+    bp_manager_.allocated[index] = false;
+
+    bp_manager_.lru_list->delete_node(forcenode);
+    bp_manager_.lru_hash.erase(forcekey);
+    bp_manager_.allocated_num--;
+    bp_manager_.free_blocks.push_back(index);
+
     return RC::SUCCESS;
-  }
-  return RC::SUCCESS;
+//
+//  int i;
+//  for (i = 0; i < BP_BUFFER_SIZE; i++) {
+//    if (!bp_manager_.allocated[i])
+//      continue;
+//
+//    Frame *frame = &bp_manager_.frame[i];
+//    if (frame->file_desc != file_handle->file_desc)
+//      continue;
+//    if (frame->page.page_num != page_num && page_num != -1) {
+//      continue;
+//    }
+//
+//    if (frame->pin_count != 0) {
+//      LOG_ERROR("Page :%s:%d has been pinned.", file_handle->file_name, page_num);
+//      return RC::BUFFERPOOL_PAGE_PINNED;
+//    }
+//
+//    if (frame->dirty) {
+//      RC rc = RC::SUCCESS;
+//      if ((rc = flush_block(frame)) != RC::SUCCESS) {
+//        LOG_ERROR("Failed to flush page:%s:%d.", file_handle->file_name, page_num);
+//        return rc;
+//      }
+//    }
+//    bp_manager_.allocated[i] = false;
+//    return RC::SUCCESS;
+//  }
+//  return RC::SUCCESS;
 }
 
 RC DiskBufferPool::flush_all_pages(int file_id)
@@ -556,56 +608,116 @@ RC DiskBufferPool::flush_block(Frame *frame)
   return RC::SUCCESS;
 }
 
-RC DiskBufferPool::allocate_block(Frame **buffer)
+RC DiskBufferPool::allocate_block(Frame **buffer,int file_desc,int page_num)
 {
+    /***
+     * LRU实现
+     */
+    if(bp_manager_.allocated_num<BP_BUFFER_SIZE){
+        //说明当前还用空的frame
+        int index=bp_manager_.free_blocks[0];
+        /*
+         * 将新插入的块记录到lru_map和lru_list中
+         */
+        FrameKey new_framekey=FrameKey(file_desc,page_num);
+        Node* new_node=new Node(index,new_framekey);
+        bp_manager_.lru_hash.insert(std::pair<FrameKey,Node*>(new_framekey,new_node));
+        bp_manager_.lru_list->insert(new_node);
 
-  // There is one Frame which is free.
-  // 这一段是如果当前buffer还没有满，那么找到一个空的frame就把它给'参数buffer'用
-  // 将其allocated
-  for (int i = 0; i < BP_BUFFER_SIZE; i++) {
-    if (!bp_manager_.allocated[i]) {
-      bp_manager_.allocated[i] = true;
-      *buffer = bp_manager_.frame + i;  // *buffer:Frame*
-      LOG_DEBUG("Allocate block frame=%p", bp_manager_.frame + i);
-      return RC::SUCCESS;
-    }
-  }
+        bp_manager_.allocated[index]=true;
+        *buffer=bp_manager_.frame+index;
+        LOG_DEBUG("Allocate block frame=%p", bp_manager_.frame + index);
 
-  // 如果现在buffer已经满了，那么需要用LRU原则来找到一个frame来进行替换
-  // 下面就是要找一个最早被加入到buffer中的frame，也就是这个frame的acc_time最小
-  int min = 0;
-  unsigned long mintime = 0;
-  bool flag = false;
-  for (int i = 0; i < BP_BUFFER_SIZE; i++) {
-    if (bp_manager_.frame[i].pin_count != 0) // 如果一个frame的pin_count被赋值，说明不能动这个frame
-      continue;
-    if (!flag) { // 如果这是第一个没有被pin的frame，之前还没有更新过mintime；
-        // 这里不用i=0来判断是因为可能i=0的frame被pin了
-      flag = true;
-      min = i;
-      mintime = bp_manager_.frame[i].acc_time;
+        bp_manager_.allocated_num++;
+        std::vector<int>::iterator k=bp_manager_.free_blocks.begin();
+        bp_manager_.free_blocks.erase(k);
+
+        return RC::SUCCESS;
+        //如果可以用allocated++ free_blocks删除这个块
     }
-    if (bp_manager_.frame[i].acc_time < mintime) {
-      min = i;
-      mintime = bp_manager_.frame[i].acc_time;
+
+    Node* last=bp_manager_.lru_list->tail->prev;
+    int last_index=last->index;
+    while(bp_manager_.frame[last_index].pin_count!=0){
+        //说明当前最后一个固定住了，不能动这个frame，向前找frame
+        last=last->prev;
+        last_index=last->index;
+        if(last->prev== nullptr){
+            //已经找到了head指针，之前遍历过的所有frame都是被固定的
+            LOG_ERROR("All pages have been used and pinned.");
+            return RC::NOMEM;
+        }
     }
-  }
-  if (!flag) {
-    LOG_ERROR("All pages have been used and pinned.");
-    return RC::NOMEM;
-  }
-//replace
-  // 找到了用于替换的frame，将脏页刷盘
-  if (bp_manager_.frame[min].dirty) {
-    RC rc = flush_block(&(bp_manager_.frame[min]));
-    if (rc != RC::SUCCESS) {
-      LOG_ERROR("Failed to flush block of %d for %d.", min, bp_manager_.frame[min].file_desc);
-      return rc;
+    if(bp_manager_.frame[last_index].dirty){
+        RC rc = flush_block(&(bp_manager_.frame[last_index]));
+        if (rc != RC::SUCCESS) {
+            LOG_ERROR("Failed to flush block of %d for %d.", last_index, bp_manager_.frame[last_index].file_desc);
+            return rc;
+        }
     }
-  }
-  // 指针+int：加一个对应类型的长度 如char指针+1 就是加1字节；int指针+1就是加4字节
-  *buffer = bp_manager_.frame + min;
-  return RC::SUCCESS;
+    *buffer = bp_manager_.frame + last_index;
+    int old_filedesc=bp_manager_.frame[last_index].file_desc;
+    int old_pagenum=bp_manager_.frame[last_index].page.page_num;
+    FrameKey old_framekey=FrameKey(old_filedesc,old_pagenum);
+    Node* old_node=bp_manager_.lru_hash[old_framekey];
+    bp_manager_.lru_hash.erase(old_framekey);
+    bp_manager_.lru_list->delete_node(old_node);
+
+
+    FrameKey new_framekey=FrameKey(file_desc,page_num);
+    Node* new_node=new Node(last_index, new_framekey);
+    bp_manager_.lru_hash.insert(std::pair<FrameKey,Node*>(new_framekey,new_node));
+    bp_manager_.lru_list->insert(new_node);
+
+    return RC::SUCCESS;
+
+//  // There is one Frame which is free.
+//  // 这一段是如果当前buffer还没有满，那么找到一个空的frame就把它给'参数buffer'用
+//  // 将其allocated
+//
+//  for (int i = 0; i < BP_BUFFER_SIZE; i++) {
+//    if (!bp_manager_.allocated[i]) {
+//      bp_manager_.allocated[i] = true;
+//      *buffer = bp_manager_.frame + i;  // *buffer:Frame*
+//      LOG_DEBUG("Allocate block frame=%p", bp_manager_.frame + i);
+//      return RC::SUCCESS;
+//    }
+//  }
+//  // 如果现在buffer已经满了，那么需要用LRU原则来找到一个frame来进行替换
+//  // 下面就是要找一个最早被加入到buffer中的frame，也就是这个frame的acc_time最小
+//  int min = 0;
+//  unsigned long mintime = 0;
+//  bool flag = false;
+//  for (int i = 0; i < BP_BUFFER_SIZE; i++) {
+//    if (bp_manager_.frame[i].pin_count != 0) // 如果一个frame的pin_count被赋值，说明不能动这个frame
+//      continue;
+//    if (!flag) { // 如果这是第一个没有被pin的frame，之前还没有更新过mintime；
+//        // 这里不用i=0来判断是因为可能i=0的frame被pin了
+//      flag = true;
+//      min = i;
+//      mintime = bp_manager_.frame[i].acc_time;
+//    }
+//    if (bp_manager_.frame[i].acc_time < mintime) {
+//      min = i;
+//      mintime = bp_manager_.frame[i].acc_time;
+//    }
+//  }
+//  if (!flag) {
+//    LOG_ERROR("All pages have been used and pinned.");
+//    return RC::NOMEM;
+//  }
+////replace
+//  // 找到了用于替换的frame，将脏页刷盘
+//  if (bp_manager_.frame[min].dirty) {
+//    RC rc = flush_block(&(bp_manager_.frame[min]));
+//    if (rc != RC::SUCCESS) {
+//      LOG_ERROR("Failed to flush block of %d for %d.", min, bp_manager_.frame[min].file_desc);
+//      return rc;
+//    }
+//  }
+//  // 指针+int：加一个对应类型的长度 如char指针+1 就是加1字节；int指针+1就是加4字节
+//  *buffer = bp_manager_.frame + min;
+//  return RC::SUCCESS;
 }
 
 RC DiskBufferPool::dispose_block(Frame *buf)
@@ -621,9 +733,21 @@ RC DiskBufferPool::dispose_block(Frame *buf)
       return rc;
     }
   }
+
   buf->dirty = false;
   int pos = buf - bp_manager_.frame;
   bp_manager_.allocated[pos] = false;
+
+  int file_desc=buf->file_desc;
+  int page_num=buf->page.page_num;
+  FrameKey deletekey=FrameKey(file_desc,page_num);
+  Node* deletenode=bp_manager_.lru_hash[deletekey];
+  int index=deletenode->index;
+  bp_manager_.lru_list->delete_node(deletenode);
+  bp_manager_.lru_hash.erase(deletekey);
+  bp_manager_.allocated_num--;
+  bp_manager_.free_blocks.push_back(index);
+
   LOG_DEBUG("dispost block frame =%p", buf);
   return RC::SUCCESS;
 }
