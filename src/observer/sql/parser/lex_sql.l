@@ -35,21 +35,21 @@ QUOTE            [\'\"]
 {WHITE_SAPCE}                           // ignore whitespace
 \n																						 ;
 
-[\-]?{DIGIT}+					                   yylval->number=atoi(yytext); RETURN_TOKEN(NUMBER);
+[\-]?{DIGIT}+					               yylval->number=atoi(yytext); RETURN_TOKEN(NUMBER);
 [\-]?{DIGIT}+{DOT}{DIGIT}+				       yylval->floats=(float)(atof(yytext)); RETURN_TOKEN(FLOAT);
 
-";"                 	 				           RETURN_TOKEN(SEMICOLON);
+";"                 	 				         RETURN_TOKEN(SEMICOLON);
 {DOT}                 					         RETURN_TOKEN(DOT);
 "*"                   					         RETURN_TOKEN(STAR);
-[Ee][Xx][Ii][Tt]						             RETURN_TOKEN(EXIT);
+[Ee][Xx][Ii][Tt]						         RETURN_TOKEN(EXIT);
 
 [Cc][Oo][Uu][Nn][Tt]							RETURN_TOKEN(COUNT);
-[Mm][Aa][Xx]							RETURN_TOKEN(MAX);
-[Mm][Ii][Nn]								RETURN_TOKEN(MIN);
-[Aa][Vv][Gg]								RETURN_TOKEN(AVG);
+[Mm][Aa][Xx]							        RETURN_TOKEN(MAX);
+[Mm][Ii][Nn]								    RETURN_TOKEN(MIN);
+[Aa][Vv][Gg]								    RETURN_TOKEN(AVG);
 
 [Ii][Nn][Nn][Ee][Rr]							RETURN_TOKEN(INNER);
-[Jj][Oo][Ii][Nn]						RETURN_TOKEN(JOIN);
+[Jj][Oo][Ii][Nn]						        RETURN_TOKEN(JOIN);
 
 [Hh][Ee][Ll][Pp]                    	   RETURN_TOKEN(HELP);
 [Dd][Ee][Ss][Cc]                         RETURN_TOKEN(DESC);
@@ -77,7 +77,6 @@ QUOTE            [\'\"]
 [Ii][Nn][Tt]					                   RETURN_TOKEN(INT_T);
 [Cc][Hh][Aa][Rr]				                 RETURN_TOKEN(STRING_T);
 [Ff][Ll][Oo][Aa][Tt]			               RETURN_TOKEN(FLOAT_T);
-
 [Dd][Aa][Tt][Ee]				                RETURN_TOKEN(DATE_T);
 [Tt][Ee][Xx][Tt]								RETURN_TOKEN(TEXT_T);
 [Uu][Nn][Ii][Qq][Uu][Ee]                        RETURN_TOKEN(UNIQUE);
@@ -90,6 +89,10 @@ QUOTE            [\'\"]
 [Nn][Oo][Tt]									RETURN_TOKEN(NOT);
 [Nn][Uu][Ll][Ll][Aa][Bb][Ll][Ee]				RETURN_TOKEN(NULLABLE);
 [Nn][Uu][Ll][Ll]								RETURN_TOKEN(NULL_T);
+
+[Oo][Rr][Dd][Ee][Rr]                            RETURN_TOKEN(ORDER);
+[Bb][Yy]                                        RETURN_TOKEN(BY);
+[Aa][Ss][Cc]                                    RETURN_TOKEN(ASC);
 
 {ID}							                       yylval->string=strdup(yytext); RETURN_TOKEN(ID);
 "("								                       RETURN_TOKEN(LBRACE);

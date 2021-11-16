@@ -28,7 +28,12 @@ typedef struct ParserContext {
 
   Condition conditions[MAX_NUM];
   CompOp comp;
-	char id[MAX_NUM];
+  char id[MAX_NUM];
+
+  size_t    order_num;
+  OrderDescription order_descs[MAX_NUM];
+  OrderType order_type;
+
 } ParserContext;
 
 //获取子串
@@ -85,7 +90,12 @@ ParserContext *get_context(yyscan_t scanner)
         TABLES
         INDEX
         SELECT
-        DESC
+
+		ORDER
+		BY
+		ASC
+		DESC
+
         SHOW
         SYNC
         INSERT
@@ -104,6 +114,8 @@ ParserContext *get_context(yyscan_t scanner)
         DATE_T //DATE
         TEXT_T //TEXT
         UNIQUE
+
+
 
         HELP
         EXIT
@@ -413,13 +425,14 @@ update:			/*  update 语句的语法解析树*/
 		}
     ;
 select:				/*  select 语句的语法解析树*/
-    SELECT select_attr FROM ID rel_list where SEMICOLON
-		{
+    SELECT select_attr FROM ID rel_list where opt_order_by_clause SEMICOLON
+	{
 			// CONTEXT->ssql->sstr.selection.relations[CONTEXT->from_length++]=$4;
 			selects_append_relation(&CONTEXT->ssql->sstr.selection, $4);
 
 			selects_append_conditions(&CONTEXT->ssql->sstr.selection, CONTEXT->conditions, CONTEXT->condition_length);
 
+			selects_append_orders(&CONTEXT->ssql->sstr.selection, CONTEXT->order_descs, CONTEXT->order_num);
 			CONTEXT->ssql->flag=SCF_SELECT;//"select";
 			// CONTEXT->ssql->sstr.selection.attr_num = CONTEXT->select_length;
 
@@ -428,12 +441,14 @@ select:				/*  select 语句的语法解析树*/
 			CONTEXT->from_length=0;
 			CONTEXT->select_length=0;
 			CONTEXT->value_length = 0;
+			CONTEXT->order_num = 0;
+
 	}
-	| SELECT select_attr FROM ID join_list where SEMICOLON
+	| SELECT select_attr FROM ID join_list where opt_order_by_clause SEMICOLON
 	{
 		selects_append_relation(&CONTEXT->ssql->sstr.selection, $4);
 		selects_append_conditions(&CONTEXT->ssql->sstr.selection, CONTEXT->conditions, CONTEXT->condition_length);
-
+		selects_append_orders(&CONTEXT->ssql->sstr.selection, CONTEXT->order_descs, CONTEXT->order_num);
 		CONTEXT->ssql->flag = SCF_SELECT;
 
 		//临时变量清0
@@ -441,6 +456,7 @@ select:				/*  select 语句的语法解析树*/
 		CONTEXT->from_length = 0;
 		CONTEXT->select_length = 0;
 		CONTEXT->value_length = 0;
+		CONTEXT->order_num = 0;
 	}
 	;
 
@@ -506,7 +522,7 @@ select_attr:
 			RelAttr attr;
 			relation_attr_with_agg_init(&attr, "MIN", $3, $5);
 			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-		}	
+		}
     ;
 
 attr_list:
@@ -586,16 +602,54 @@ join_list:
 	;
 where:
     /* empty */
-    | WHERE condition condition_list {
-				// CONTEXT->conditions[CONTEXT->condition_length++]=*$2;
-			}
+    | WHERE condition condition_list
     ;
+
+opt_order_by_clause:
+		/* empty */
+	|	ORDER BY ordering_spec_commalist
+	;
+
+ordering_spec_commalist:
+		ordering_spec
+	|	ordering_spec_commalist COMMA ordering_spec
+	;
+
+ordering_spec:
+		column_ref opt_asc_desc
+	;
+
+column_ref:
+		ID {
+                    			OrderDescription order_desc;
+                    			relation_order_init(&order_desc, NULL, $1, CONTEXT->order_type);
+        				CONTEXT->order_descs[CONTEXT->order_num++] = order_desc;
+
+
+
+
+                    }
+	|	ID DOT ID{
+					OrderDescription order_desc;
+                                        relation_order_init(&order_desc, $1, $3, CONTEXT->order_type);
+                                        CONTEXT->order_descs[CONTEXT->order_num++] = order_desc;
+
+
+	}
+	;
+
+opt_asc_desc:
+	ASC { CONTEXT->order_type  = kOrderAsc; }
+	| DESC { CONTEXT->order_type  = kOrderDesc; }
+	| /* empty */ { CONTEXT->order_type  = kOrderAsc; }
+	;
+
+
 condition_list:
     /* empty */
-    | AND condition condition_list {
-				// CONTEXT->conditions[CONTEXT->condition_length++]=*$2;
-			}
+    | AND condition condition_list
     ;
+
 condition:
     ID comOp value
 		{
@@ -744,7 +798,7 @@ condition:
     ;
 
 comOp:
-  	  EQ { CONTEXT->comp = EQUAL_TO; }
+      EQ { CONTEXT->comp = EQUAL_TO; }
     | LT { CONTEXT->comp = LESS_THAN; }
     | GT { CONTEXT->comp = GREAT_THAN; }
     | LE { CONTEXT->comp = LESS_EQUAL; }
