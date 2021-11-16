@@ -17,14 +17,6 @@ See the Mulan PSL v2 for more details. */
 #include "common/log/log.h"
 #include "sql/parser/parse_defs.h"
 
-int float_compare(float f1, float f2) {
-  float result = f1 - f2;
-  if (result < 0.000001 && result > -0.000001) {
-    return 0;
-  }
-  return result > 0 ? 1: -1;
-}
-
 IndexNode * BplusTreeHandler::get_index_node(char *page_data) const {
   IndexNode *node = (IndexNode  *)(page_data + sizeof(IndexFileHeader));
   node->keys = (char *)node + sizeof(IndexNode);
@@ -182,7 +174,12 @@ int CompareKey(const char *pdata, const char *pkey,int attr_type,int attr_length
     case FLOATS: {
       f1 = *(float *) pdata;
       f2 = *(float *) pkey;
-      return float_compare(f1, f2);
+      if (f1 > f2)
+        return 1;
+      if (f1 < f2)
+        return -1;
+      if (f1 == f2)
+        return 0;
     }
       break;
     case CHARS: {
