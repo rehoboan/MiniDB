@@ -32,7 +32,17 @@ void relation_attr_init(RelAttr *relation_attr, const char *relation_name, const
   relation_attr->attribute_name = strdup(attribute_name);
 }
 
-void relation_attr_with_agg_init(RelAttr *relation_attr, const char *agg_name, 
+void relation_order_init(OrderDescription *order_desc, const char *relation_name, const char *attribute_name, OrderType order_type){
+  if (relation_name != nullptr) {
+    order_desc->relation_name = strdup(relation_name);
+  } else {
+    order_desc->relation_name = nullptr;
+  }
+  order_desc->attribute_name = strdup(attribute_name);
+  order_desc->type = order_type;
+}
+
+void relation_attr_with_agg_init(RelAttr *relation_attr, const char *agg_name,
                                 const char *relation_name, const char *attribute_name) {
   relation_attr_init(relation_attr, relation_name, attribute_name);
   if(agg_name != nullptr)
@@ -185,6 +195,13 @@ void selects_append_conditions(Selects *selects, Condition conditions[], size_t 
     selects->conditions[i] = conditions[i];
   }
   selects->condition_num = condition_num;
+}
+
+void selects_append_orders(Selects *selects, OrderDescription orders[], size_t order_num){
+  for (size_t i = 0; i < order_num; i++) {
+    selects->order_des[i] = orders[i];
+  }
+  selects->order_num = order_num;
 }
 
 void selects_destroy(Selects *selects) {

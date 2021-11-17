@@ -218,6 +218,7 @@ void TupleSet::print(std::ostream &os, std::vector<std::pair<const char *, const
   os<<select_columns.back().second<<std::endl;
 
   //print select result
+
   for (const Tuple &item : tuples_) {
     const std::vector<std::shared_ptr<TupleValue>> &values = item.values();
     for(int i=0; i<select_columns_id.size()-1; i++) {
@@ -254,6 +255,69 @@ const Tuple &TupleSet::get(int index) const {
 
 const std::vector<Tuple> &TupleSet::tuples() const {
   return tuples_;
+}
+
+//bool TupleSet::comparison(const Tuple &t1,const Tuple &t2){
+//  if(order_num==1){
+//
+//  }
+//
+//}
+
+
+
+
+void TupleSet::sort(Selects selects) {
+//  std::sort(tuples_.begin(), tuples_.end(), comparison);
+  if (selects.order_num == 1){
+    OrderType order_type = selects.order_des[0].type;
+    int field_index = schema_.index_of_field(selects.relations[0],selects.order_des[0].attribute_name);
+    std::sort(tuples_.begin(), tuples_.end(),
+              [field_index,order_type] (const Tuple& t1, const Tuple& t2)
+              {
+                  if(order_type == kOrderDesc){
+                    return t1.get(field_index).compare(t2.get(field_index))>0 ;
+                  }else{
+                    return t1.get(field_index).compare(t2.get(field_index))<0 ;
+                  }
+              }
+    );
+  }
+  else{
+    OrderType order_type = selects.order_des[0].type;
+    int field_index = schema_.index_of_field(selects.order_des[0].relation_name, selects.order_des[0].attribute_name);
+    OrderType order_type1 = selects.order_des[1].type;
+    int field_index1 = schema_.index_of_field(selects.order_des[1].relation_name, selects.order_des[1].attribute_name);
+
+    std::sort(tuples_.begin(), tuples_.end(),
+              [field_index,order_type,field_index1,order_type1] (const Tuple& t1, const Tuple& t2) {
+                  if (order_type == kOrderDesc) {
+                    int ret = t1.get(field_index).compare(t2.get(field_index));
+                    if (ret == 0) {
+                      if (order_type1 == kOrderDesc) {
+                        return t1.get(field_index1).compare(t2.get(field_index1)) > 0;
+                      } else {
+                        return t1.get(field_index1).compare(t2.get(field_index1)) < 0;
+                      }
+                    } else {
+                      return t1.get(field_index).compare(t2.get(field_index)) > 0;
+                    }
+                  } else {
+                    int ret = t1.get(field_index).compare(t2.get(field_index));
+                    if (ret == 0) {
+                      if (order_type1 == kOrderDesc) {
+                        return t1.get(field_index1).compare(t2.get(field_index1)) > 0;
+                      } else {
+                        return t1.get(field_index1).compare(t2.get(field_index1)) < 0;
+                      }
+                    } else {
+                      return t1.get(field_index).compare(t2.get(field_index)) < 0;
+                    }
+                  }
+              }
+    );
+  }
+
 }
 
 /////////////////////////////////////////////////////////////////////////////

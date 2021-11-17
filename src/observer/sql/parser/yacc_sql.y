@@ -28,7 +28,13 @@ typedef struct ParserContext {
 
   Condition conditions[MAX_NUM];
   CompOp comp;
-	char id[MAX_NUM];
+  char id[MAX_NUM];
+
+  size_t    order_num;
+  OrderDescription orders[2];
+  OrderType	order_type;
+
+
 } ParserContext;
 
 //获取子串
@@ -85,7 +91,12 @@ ParserContext *get_context(yyscan_t scanner)
         TABLES
         INDEX
         SELECT
-        DESC
+
+		ORDER
+		BY
+		ASC
+		DESC
+
         SHOW
         SYNC
         INSERT
@@ -104,6 +115,8 @@ ParserContext *get_context(yyscan_t scanner)
         DATE_T //DATE
         TEXT_T //TEXT
         UNIQUE
+
+
 
         HELP
         EXIT
@@ -137,6 +150,7 @@ ParserContext *get_context(yyscan_t scanner)
   struct _Attr *attr;
   struct _Condition *condition1;
   struct _Value *value1;
+  struct _OrderDescription *order;
   char *string;
   int number;
   float floats;
@@ -156,6 +170,10 @@ ParserContext *get_context(yyscan_t scanner)
 %type <condition1> condition;
 %type <value1> value;
 %type <number> number;
+%type <number> opt_order_type;
+%type <order> column_ref;
+
+
 
 %%
 
@@ -413,12 +431,13 @@ update:			/*  update 语句的语法解析树*/
 		}
     ;
 select:				/*  select 语句的语法解析树*/
-    SELECT select_attr FROM ID rel_list where SEMICOLON
-		{
+    SELECT select_attr FROM ID rel_list where opt_order SEMICOLON
+	{
 			// CONTEXT->ssql->sstr.selection.relations[CONTEXT->from_length++]=$4;
 			selects_append_relation(&CONTEXT->ssql->sstr.selection, $4);
 
 			selects_append_conditions(&CONTEXT->ssql->sstr.selection, CONTEXT->conditions, CONTEXT->condition_length);
+			selects_append_orders(&CONTEXT->ssql->sstr.selection, CONTEXT->orders, CONTEXT->order_num);
 
 			CONTEXT->ssql->flag=SCF_SELECT;//"select";
 			// CONTEXT->ssql->sstr.selection.attr_num = CONTEXT->select_length;
@@ -428,12 +447,14 @@ select:				/*  select 语句的语法解析树*/
 			CONTEXT->from_length=0;
 			CONTEXT->select_length=0;
 			CONTEXT->value_length = 0;
+			CONTEXT->order_num = 0;
+
 	}
-	| SELECT select_attr FROM ID join_list where SEMICOLON
+	| SELECT select_attr FROM ID join_list where opt_order SEMICOLON
 	{
 		selects_append_relation(&CONTEXT->ssql->sstr.selection, $4);
 		selects_append_conditions(&CONTEXT->ssql->sstr.selection, CONTEXT->conditions, CONTEXT->condition_length);
-
+		selects_append_orders(&CONTEXT->ssql->sstr.selection, CONTEXT->orders, CONTEXT->order_num);
 		CONTEXT->ssql->flag = SCF_SELECT;
 
 		//临时变量清0
@@ -441,6 +462,7 @@ select:				/*  select 语句的语法解析树*/
 		CONTEXT->from_length = 0;
 		CONTEXT->select_length = 0;
 		CONTEXT->value_length = 0;
+		CONTEXT->order_num = 0;
 	}
 	;
 
@@ -506,7 +528,7 @@ select_attr:
 			RelAttr attr;
 			relation_attr_with_agg_init(&attr, "MIN", $3, $5);
 			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-		}	
+		}
     ;
 
 attr_list:
@@ -586,16 +608,40 @@ join_list:
 	;
 where:
     /* empty */
-    | WHERE condition condition_list {
-				// CONTEXT->conditions[CONTEXT->condition_length++]=*$2;
-			}
+    | WHERE condition condition_list
     ;
+
+opt_order:
+		/* empty */
+	|	ORDER BY orderby order_list
+	;
+
+order_list:
+	|COMMA orderby order_list
+	;
+orderby:
+| ID opt_order_type{
+	OrderDescription order;
+	relation_order_init(&order, NULL, $1, CONTEXT->order_type);
+        CONTEXT->orders[CONTEXT->order_num++] = order;
+}
+|ID DOT ID opt_order_type{
+	OrderDescription order;
+	relation_order_init(&order, $1, $3, CONTEXT->order_type);
+        CONTEXT->orders[CONTEXT->order_num++] = order;
+}
+
+
+opt_order_type : ASC { CONTEXT->order_type = kOrderAsc; }
+| DESC { CONTEXT->order_type = kOrderDesc; }
+| /* empty */ { CONTEXT->order_type = kOrderAsc; }
+		;
+
 condition_list:
     /* empty */
-    | AND condition condition_list {
-				// CONTEXT->conditions[CONTEXT->condition_length++]=*$2;
-			}
+    | AND condition condition_list
     ;
+
 condition:
     ID comOp value
 		{
@@ -744,7 +790,7 @@ condition:
     ;
 
 comOp:
-  	  EQ { CONTEXT->comp = EQUAL_TO; }
+      EQ { CONTEXT->comp = EQUAL_TO; }
     | LT { CONTEXT->comp = LESS_THAN; }
     | GT { CONTEXT->comp = GREAT_THAN; }
     | LE { CONTEXT->comp = LESS_EQUAL; }

@@ -151,13 +151,20 @@ public:
 
   void print(std::ostream &os) const;
   void print(std::ostream &os, std::vector<std::pair<const char *, const char *>> &select_columns, bool is_multi_table);
+
+  void sort(size_t i, OrderDescription Description[2]);
+
 public:
   const TupleSchema &schema() const {
     return schema_;
   }
+    void sort(Selects selects);
 private:
   std::vector<Tuple> tuples_;
   TupleSchema schema_;
+
+
+
 };
 
 class TupleRecordConverter {
