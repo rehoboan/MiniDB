@@ -282,22 +282,26 @@ RC TupleSet::sort(Selects selects) {
 
   std::sort(tuples_.begin(), tuples_.end(),
               [selects, schema](const Tuple &t1, const Tuple &t2) {
-                  for (int i = 0; i < selects.order_num; ++i) {
+                  int i = 0;
+                  int ret = 0;
+                  while (true){
                     int field_index;
                     if (selects.order_des[i].relation_name == nullptr) {
                       field_index = schema.index_of_field(selects.relations[0], selects.order_des[i].attribute_name);
                     } else {
                       field_index = schema.index_of_field(selects.order_des[i].relation_name, selects.order_des[i].attribute_name);
                     }
-                    int ret = t1.get(field_index).compare(t2.get(field_index));
-                    if (ret == 0) {
-                      continue;
-                    } else {
+                    ret = t1.get(field_index).compare(t2.get(field_index));
+                    i++;
+                    if(ret != 0 || i==selects.order_num){
+                      break;
+                    }
+                  }
+
                       if (selects.order_des->type == kOrderDesc) return ret > 0;
                       else return ret < 0;
                     }
-                  }
-              }
+
     );
   return RC::SUCCESS;
 

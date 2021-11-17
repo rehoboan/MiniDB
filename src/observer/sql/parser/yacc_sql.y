@@ -35,6 +35,8 @@ typedef struct ParserContext {
   OrderType	order_type;
 
 
+
+
 } ParserContext;
 
 //获取子串
@@ -97,6 +99,8 @@ ParserContext *get_context(yyscan_t scanner)
 		ASC
 		DESC
 
+		GROUP
+
         SHOW
         SYNC
         INSERT
@@ -144,8 +148,6 @@ ParserContext *get_context(yyscan_t scanner)
         GE
         NE
 
-
-
 %union {
   struct _Attr *attr;
   struct _Condition *condition1;
@@ -170,11 +172,6 @@ ParserContext *get_context(yyscan_t scanner)
 %type <condition1> condition;
 %type <value1> value;
 %type <number> number;
-%type <number> opt_order_type;
-%type <order> column_ref;
-
-
-
 %%
 
 commands:		//commands or sqls. parser starts here.
@@ -611,6 +608,14 @@ where:
     | WHERE condition condition_list
     ;
 
+opt_group:
+
+	|GROUP BY expr_list {
+  $$ = new GroupByDescription();
+  $$->columns = $3;
+	}
+	;
+
 opt_order:
 		/* empty */
 	|	ORDER BY orderby order_list
@@ -635,7 +640,7 @@ orderby:
 opt_order_type : ASC { CONTEXT->order_type = kOrderAsc; }
 | DESC { CONTEXT->order_type = kOrderDesc; }
 | /* empty */ { CONTEXT->order_type = kOrderAsc; }
-		;
+;
 
 condition_list:
     /* empty */
