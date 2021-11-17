@@ -270,7 +270,7 @@ RC TupleSet::sort(Selects selects) {
   TupleSchema schema = schema_;
   for (int i = 0; i < selects.order_num; ++i) {
     int field_index;
-    if (selects.relations[i] == nullptr) {
+    if (selects.order_des[i].relation_name == nullptr) {
       field_index = schema.index_of_field(selects.relations[0], selects.order_des[i].attribute_name);
     } else {
       field_index = schema.index_of_field(selects.order_des[i].relation_name, selects.order_des[i].attribute_name);
@@ -284,10 +284,10 @@ RC TupleSet::sort(Selects selects) {
               [selects, schema](const Tuple &t1, const Tuple &t2) {
                   for (int i = 0; i < selects.order_num; ++i) {
                     int field_index;
-                    if (selects.relations[i] == nullptr) {
+                    if (selects.order_des[i].relation_name == nullptr) {
                       field_index = schema.index_of_field(selects.relations[0], selects.order_des[i].attribute_name);
                     } else {
-                      field_index = schema.index_of_field(selects.relations[i], selects.order_des[i].attribute_name);
+                      field_index = schema.index_of_field(selects.order_des[i].relation_name, selects.order_des[i].attribute_name);
                     }
                     int ret = t1.get(field_index).compare(t2.get(field_index));
                     if (ret == 0) {
