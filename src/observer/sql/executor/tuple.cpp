@@ -266,64 +266,43 @@ const std::vector<Tuple> &TupleSet::tuples() const {
 //}
 
 
-
-
 RC TupleSet::sort(Selects selects) {
-  if (selects.order_num == 1){
-    OrderType order_type = selects.order_des[0].type;
-    int field_index = schema_.index_of_field(selects.relations[0],selects.order_des[0].attribute_name);
-    if (field_index == -1){
+  TupleSchema schema = schema_;
+  for (int i = 0; i < selects.order_num; ++i) {
+    int field_index;
+    if (selects.relations[i] == nullptr) {
+      field_index = schema.index_of_field(selects.relations[0], selects.order_des[i].attribute_name);
+    } else {
+      field_index = schema.index_of_field(selects.order_des[i].relation_name, selects.order_des[i].attribute_name);
+    }
+    if (field_index == -1) {
       return RC::SCHEMA_FIELD_NOT_EXIST;
     }
-    std::sort(tuples_.begin(), tuples_.end(),
-              [field_index,order_type] (const Tuple& t1, const Tuple& t2)
-              {
-                  if(order_type == kOrderDesc){
-                    return t1.get(field_index).compare(t2.get(field_index))>0 ;
-                  }else{
-                    return t1.get(field_index).compare(t2.get(field_index))<0 ;
-                  }
-              }
-    );
   }
-  else{
-    OrderType order_type = selects.order_des[0].type;
-    int field_index = schema_.index_of_field(selects.order_des[0].relation_name, selects.order_des[0].attribute_name);
-    OrderType order_type1 = selects.order_des[1].type;
-    int field_index1 = schema_.index_of_field(selects.order_des[1].relation_name, selects.order_des[1].attribute_name);
-    if (field_index == -1 || field_index1 == -1){
-      return RC::SCHEMA_FIELD_NOT_EXIST;
-    }
-    std::sort(tuples_.begin(), tuples_.end(),
-              [field_index,order_type,field_index1,order_type1] (const Tuple& t1, const Tuple& t2) {
-                  if (order_type == kOrderDesc) {
-                    int ret = t1.get(field_index).compare(t2.get(field_index));
-                    if (ret == 0) {
-                      if (order_type1 == kOrderDesc) {
-                        return t1.get(field_index1).compare(t2.get(field_index1)) > 0;
-                      } else {
-                        return t1.get(field_index1).compare(t2.get(field_index1)) < 0;
-                      }
+
+  std::sort(tuples_.begin(), tuples_.end(),
+              [selects, schema](const Tuple &t1, const Tuple &t2) {
+                  for (int i = 0; i < selects.order_num; ++i) {
+                    int field_index;
+                    if (selects.relations[i] == nullptr) {
+                      field_index = schema.index_of_field(selects.relations[0], selects.order_des[i].attribute_name);
                     } else {
-                      return t1.get(field_index).compare(t2.get(field_index)) > 0;
+                      field_index = schema.index_of_field(selects.relations[i], selects.order_des[i].attribute_name);
                     }
-                  } else {
                     int ret = t1.get(field_index).compare(t2.get(field_index));
                     if (ret == 0) {
-                      if (order_type1 == kOrderDesc) {
-                        return t1.get(field_index1).compare(t2.get(field_index1)) > 0;
-                      } else {
-                        return t1.get(field_index1).compare(t2.get(field_index1)) < 0;
-                      }
+                      continue;
                     } else {
-                      return t1.get(field_index).compare(t2.get(field_index)) < 0;
+                      if (selects.order_des->type == kOrderDesc) return ret > 0;
+                      else return ret < 0;
                     }
                   }
               }
     );
-  }
   return RC::SUCCESS;
+
 }
+
 
 /////////////////////////////////////////////////////////////////////////////
 TupleRecordConverter::TupleRecordConverter(Table *table, TupleSet &tuple_set) :

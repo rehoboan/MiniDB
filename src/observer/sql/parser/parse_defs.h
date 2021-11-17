@@ -123,7 +123,7 @@ typedef struct {
     size_t    condition_num;          // Length of conditions in Where clause
     Condition conditions[MAX_NUM];    // conditions in Where clause
     size_t    order_num;
-    OrderDescription order_des[2];
+    OrderDescription order_des[MAX_NUM];
 } Selects;
 
 // struct of insert

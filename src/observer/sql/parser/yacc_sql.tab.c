@@ -100,7 +100,7 @@ typedef struct ParserContext {
   char id[MAX_NUM];
 
   size_t    order_num;
-  OrderDescription orders[2];
+  OrderDescription orders[MAX_NUM];
   OrderType	order_type;
 
 
