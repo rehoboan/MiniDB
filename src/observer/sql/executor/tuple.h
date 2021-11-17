@@ -158,7 +158,7 @@ public:
   const TupleSchema &schema() const {
     return schema_;
   }
-    void sort(Selects selects);
+  RC sort(Selects selects);
 private:
   std::vector<Tuple> tuples_;
   TupleSchema schema_;

@@ -451,7 +451,11 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
 
 //  res_table
   if (sql->sstr.selection.order_num > 0){
-    res_table.sort(sql->sstr.selection);
+    RC rc = res_table.sort(sql->sstr.selection);
+    if (rc == RC::SCHEMA_FIELD_NOT_EXIST){
+      end_trx_if_need(session, trx, false);
+      return rc;
+    }
   }
 
   if(!is_agg) {
