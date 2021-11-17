@@ -297,10 +297,10 @@ RC TupleSet::sort(Selects selects) {
                       break;
                     }
                   }
+                  if (selects.order_des[i-1].type == kOrderDesc) return ret > 0;
+                  else return ret < 0;
 
-                      if (selects.order_des->type == kOrderDesc) return ret > 0;
-                      else return ret < 0;
-                    }
+  }
 
     );
   return RC::SUCCESS;
