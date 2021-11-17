@@ -198,8 +198,8 @@ void selects_append_conditions(Selects *selects, Condition conditions[], size_t 
 }
 
 void selects_append_orders(Selects *selects, OrderDescription orders[], size_t order_num){
-  for (size_t i = 0; i < order_num; ++i) {
-      selects->order_des[i] = orders[i];
+  for (size_t i = 0; i < order_num; i++) {
+    selects->order_des[i] = orders[i];
   }
   selects->order_num = order_num;
 }

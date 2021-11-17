@@ -38,16 +38,6 @@ DefaultConditionFilter::~DefaultConditionFilter()
 
 RC DefaultConditionFilter::init(const ConDesc &left, const ConDesc &right, int left_attr_type, int right_attr_type, CompOp comp_op)
 {
-//  if (attr_type < CHARS || attr_type > TEXTS) {
-//    LOG_ERROR("Invalid condition with unsupported attribute type: %d", attr_type);
-//    return RC::INVALID_ARGUMENT;
-//  }
-//
-//  if (comp_op < EQUAL_TO || comp_op >= NO_OP) {
-//    LOG_ERROR("Invalid condition with unsupported compare operation: %d", comp_op);
-//    return RC::INVALID_ARGUMENT;
-//  }
-
   if (left_attr_type < CHARS || left_attr_type > TEXTS) {
     LOG_ERROR("Invalid condition with unsupported attribute type of left: %d", left_attr_type);
     return RC::INVALID_ARGUMENT;
@@ -60,7 +50,6 @@ RC DefaultConditionFilter::init(const ConDesc &left, const ConDesc &right, int l
 
   left_ = left;
   right_ = right;
-//  attr_type_ = attr_type;
   left_attr_type_ = left_attr_type;
   right_attr_type_ = right_attr_type;
   comp_op_ = comp_op;
@@ -96,9 +85,6 @@ RC DefaultConditionFilter::init(Table &table, const Condition &condition)
     left.attr_offset = field_left->offset();
     left.attr_type = field_left->type();
     left.index = table_meta.getIndex(condition.left_attr.attribute_name) - 2;
-
-    left.value = nullptr;
-
     type_left = field_left->type();
   } else {
     left.is_attr = false;
@@ -118,7 +104,6 @@ RC DefaultConditionFilter::init(Table &table, const Condition &condition)
     right.attr_offset = field_right->offset();
     type_right = field_right->type();
     right.attr_type = field_right->type();
-    right.value = nullptr;
   } else {
     right.is_attr = false;
     right.value = condition.right_value.data;
@@ -141,6 +126,16 @@ RC DefaultConditionFilter::init(Table &table, const Condition &condition)
   comp_op_ = condition.comp;
   return RC::SUCCESS;
 //  return init(left, right, static_cast<AttrType>(type_left), condition.comp);
+}
+
+int sign(double l, double r){
+  if(l - r <0){
+    return -1;
+  }else if(l - r >0){
+    return 1;
+  }else{
+    return 0;
+  }
 }
 
 bool compare_res_with_op(CompOp op, int cmp_result, bool has_null){
@@ -169,66 +164,6 @@ bool compare_res_with_op(CompOp op, int cmp_result, bool has_null){
 
 bool DefaultConditionFilter::filter(const Record &rec) const
 {
-//  char *left_value = nullptr;
-//  char *right_value = nullptr;
-//
-//  if (left_.is_attr) {  // value
-//    left_value = (char *)(rec.data + left_.attr_offset);
-//  } else {
-//    left_value = (char *)left_.value;
-//  }
-//
-//  if (right_.is_attr) {
-//    right_value = (char *)(rec.data + right_.attr_offset);
-//  } else {
-//    right_value = (char *)right_.value;
-//  }
-//
-//  int cmp_result = 0;
-//  switch (attr_type_) {
-//    case CHARS: {  // 字符串都是定长的，直接比较
-//      // 按照C字符串风格来定
-//      cmp_result = strcmp(left_value, right_value);
-//    } break;
-//    case DATES: {
-//      cmp_result = strcmp(left_value, right_value);
-//    } break;
-//    case INTS: {
-//      // 没有考虑大小端问题
-//      // 对int和float，要考虑字节对齐问题,有些平台下直接转换可能会跪
-//      int left = *(int *)left_value;
-//      int right = *(int *)right_value;
-//      cmp_result = left - right;
-//    } break;
-//    case FLOATS: {
-//      float left = *(float *)left_value;
-//      float right = *(float *)right_value;
-//      cmp_result = (int)(left - right);
-//    } break;
-//    default: {
-//    }
-//  }
-//
-//  switch (comp_op_) {
-//    case EQUAL_TO:
-//      return 0 == cmp_result;
-//    case LESS_EQUAL:
-//      return cmp_result <= 0;
-//    case NOT_EQUAL:
-//      return cmp_result != 0;
-//    case LESS_THAN:
-//      return cmp_result < 0;
-//    case GREAT_EQUAL:
-//      return cmp_result >= 0;
-//    case GREAT_THAN:
-//      return cmp_result > 0;
-//
-//    default:
-//      break;
-//  }
-//
-//  LOG_PANIC("Never should print this.");
-//  return cmp_result;  // should not go here
   std::string tmp;
   const char *left_value = nullptr;
   bool left_null;

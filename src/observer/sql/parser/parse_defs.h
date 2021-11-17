@@ -73,7 +73,7 @@ typedef enum { UNDEFINED, CHARS, INTS, FLOATS, DATES, TEXTS } AttrType;
 
 typedef enum { kOrderAsc, kOrderDesc } OrderType;
 
-typedef struct {
+typedef struct _OrderDescription{
     OrderType type;
     char *relation_name;
     char *attribute_name;
@@ -261,6 +261,7 @@ void selects_init(Selects *selects, ...);
 void selects_append_attribute(Selects *selects, RelAttr *rel_attr);
 void selects_append_relation(Selects *selects, const char *relation_name);
 void selects_append_conditions(Selects *selects, Condition conditions[], size_t condition_num);
+//void selects_append_orders(Selects *selects, OrderDescription *order);
 void selects_append_orders(Selects *selects, OrderDescription orders[], size_t order_num);
 void selects_destroy(Selects *selects);
 

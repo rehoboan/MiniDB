@@ -448,6 +448,12 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
   } else if(agg_infos.size()>0) {
     is_agg = true;
   }
+
+//  res_table
+  if (sql->sstr.selection.order_num > 0){
+    res_table.sort(sql->sstr.selection);
+  }
+
   if(!is_agg) {
     res_table.print(ss, select_columns, is_multi_table);
   } else {
