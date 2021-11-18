@@ -160,7 +160,7 @@ public:
     return schema_;
   }
   RC sort(Selects selects);
-  std::unordered_map<std::string,std::vector<Tuple>> set_group_by(Selects selects);
+  std::unordered_map<std::string,TupleSet> set_group_by(Selects selects);
 private:
   std::vector<Tuple> tuples_;
   TupleSchema schema_;

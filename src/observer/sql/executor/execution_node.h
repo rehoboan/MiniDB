@@ -92,7 +92,10 @@ public:
   RC init(Trx *trx,
           const TupleSet *table, std::vector<std::pair<const char *, AggInfo>> &&agg_infos);
 
-  RC execute(Tuple &tuple, std::vector<const char *> &agg_columns);
+//  RC execute(Tuple &tuple, std::vector<const char *> &agg_columns);
+//  RC execute(std::vector<Tuple> tuples, std::vector<const char *> &agg_columns,
+//               std::unordered_map<std::string, std::vector<Tuple>> group_map);
+    RC execute(Tuple &tuple, std::vector<const char *> &agg_columns, std::vector<Tuple> *tuples_);
 private:
   RC init_index_map(std::unordered_map<const char *, int> &map);
   RC max(const TupleValue &value, AggValue &res);
@@ -105,6 +108,9 @@ private:
   Trx *trx_ = nullptr;
   const TupleSet *table_;
   std::vector<std::pair<const char *, AggInfo>> agg_infos_;
+
+
+
 };
 
 #endif //__OBSERVER_SQL_EXECUTOR_EXECUTION_NODE_H_

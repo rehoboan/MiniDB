@@ -193,7 +193,7 @@ RC AggregationExeNode::init(Trx *trx, const TupleSet *table, std::vector<std::pa
   
 }
 
-RC AggregationExeNode::execute(Tuple &tuple, std::vector<const char *> &agg_columns) {
+RC AggregationExeNode::execute(Tuple &tuple, std::vector<const char *> &agg_columns, std::vector<Tuple> *tuples_) {
   RC rc = RC::SUCCESS;
   //<aggname, attr index in tuple>
   std::unordered_map<const char *, int> map;
@@ -241,11 +241,16 @@ RC AggregationExeNode::execute(Tuple &tuple, std::vector<const char *> &agg_colu
     if(agg_info.type == AVGS){
       avg_count[agg_column_name] = 0;
     }
-    
+
   }
   //执行聚合操作  对每一个元组为单位进行操作
-  const std::vector<Tuple> &tuples = table_->tuples();
-  for(const Tuple &tuple : tuples) {
+  const std::vector<Tuple> *tuples;
+  if(tuples_ == nullptr){
+     tuples = &table_->tuples();
+  }else{
+    tuples = tuples_;
+  }
+  for(const Tuple &tuple : *tuples) {
     for(int i=0; i<agg_infos_.size(); i++) {
       std::pair<const char *, AggInfo> pair = agg_infos_[i];
       const char *agg_column_name = pair.first;
@@ -266,8 +271,8 @@ RC AggregationExeNode::execute(Tuple &tuple, std::vector<const char *> &agg_colu
           case COUNTS: {
             if(!tuple_value.is_null())
               rc = count(res[i], false);
-            else 
-              rc = count(res[i], true);            
+            else
+              rc = count(res[i], true);
           }
           break;
           case MAXS:
@@ -295,8 +300,8 @@ RC AggregationExeNode::execute(Tuple &tuple, std::vector<const char *> &agg_colu
 
   for(int i=0; i < agg_infos_.size(); i++) {
     AggValue agg_value = res[i];
-    const char * agg_column_name = agg_infos_[i].first;
-    agg_columns.push_back(agg_column_name);
+//    const char * agg_column_name = agg_infos_[i].first;
+//    agg_columns.push_back(agg_column_name);
     bool is_init = (agg_value.values.int_value != NULL_VALUE);
 
     if(!is_init){
@@ -314,7 +319,7 @@ RC AggregationExeNode::execute(Tuple &tuple, std::vector<const char *> &agg_colu
         }
         break;
         case 3: { //string
-          tuple.add(agg_value.values.string_value, 
+          tuple.add(agg_value.values.string_value,
                   strlen(agg_value.values.string_value));
         }
         break;
@@ -324,10 +329,10 @@ RC AggregationExeNode::execute(Tuple &tuple, std::vector<const char *> &agg_colu
 
         default:
         break;
-      }      
+      }
     }
   }
-  
+
   return rc;
 }
 

@@ -308,9 +308,8 @@ RC TupleSet::sort(Selects selects) {
 
 }
 
-std::unordered_map<std::string,std::vector<Tuple>>  TupleSet::set_group_by(Selects selects) {
-  std::unordered_map<std::string,std::vector<Tuple>> group_map;
-  const std::vector<Tuple> &tuples = tuples_;
+std::unordered_map<std::string,TupleSet>  TupleSet::set_group_by(Selects selects) {
+  std::unordered_map<std::string,TupleSet> group_map;
   int field_index;
   std::vector<int> group_index_v;
   for (int i = 0; i < selects.group_num; ++i) {
@@ -321,20 +320,21 @@ std::unordered_map<std::string,std::vector<Tuple>>  TupleSet::set_group_by(Selec
     }
     group_index_v.push_back(field_index);
   }
-  std::stringstream key;
 
-  for(const Tuple &tuple : tuples) {
+  for(Tuple &tuple : tuples_) {
+    std::stringstream key;
     for (int & group_index : group_index_v){
        tuple.get(group_index).to_string(key);
     }
     group_map[key.str()];
   }
 
-  for(const Tuple &tuple : tuples) {
+  for(Tuple &tuple : tuples_) {
+    std::stringstream key;
     for (int & group_index : group_index_v){
       tuple.get(group_index).to_string(key);
     }
-    group_map[key.str()].push_back(tuple);
+    group_map[key.str()].add(std::move(tuple));
   }
   return group_map;
 }

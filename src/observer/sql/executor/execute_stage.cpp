@@ -460,17 +460,15 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
   }
 
 //  group by table
+  std::unordered_map<std::string, TupleSet> group_map;
   if(sql->sstr.selection.group_num > 0){
-
-    std::unordered_map<std::string,std::vector<Tuple>> group_map = res_table.set_group_by(sql->sstr.selection);
-//    if (rc != RC::SUCCESS){
-//      end_trx_if_need(session, trx, false);
-//      return rc;
-//    }
+    group_map = res_table.set_group_by(sql->sstr.selection);
   }
+
   if(!is_agg) {
     res_table.print(ss, select_columns, is_multi_table);
   } else {
+
 
     AggregationExeNode agg_node;
     rc = create_aggregation_executor(trx, res_table, agg_infos, agg_node, session_event);
@@ -479,13 +477,33 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
       end_trx_if_need(session, trx, false);
       return rc;
     }
-    Tuple agg_res;
+
+    TupleSet agg_res_v;
     std::vector<const char *> agg_columns;
-    rc = agg_node.execute(agg_res, agg_columns);
+
+    for(int i=0; i < agg_infos.size(); i++) {
+      const char *agg_column_name = agg_infos[i].first;
+      agg_columns.push_back(agg_column_name);
+    }
+
+    if(sql->sstr.selection.group_num == 0){
+      Tuple agg_res;
+      rc = agg_node.execute(agg_res, agg_columns, nullptr);
+      agg_res_v.add(std::move(agg_res));
+    }else{
+      for(auto &it : group_map){
+        Tuple agg_res;
+        agg_node.execute(agg_res, agg_columns, const_cast<std::vector<Tuple> *>(&it.second.tuples()));
+        agg_res_v.add(std::move(agg_res));
+      }
+    }
+
+
     if(rc != RC::SUCCESS) {
       end_trx_if_need(session, trx, false);
       return rc;
     }
+
     //print aggregation selection columns
     for(int i=0; i<agg_columns.size()-1; i++) {
       ss<<agg_columns[i] << " | ";
@@ -493,13 +511,15 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
     ss<<agg_columns.back()<<std::endl;
 
     //print data
-    const std::vector<std::shared_ptr<TupleValue>> &values = agg_res.values();
-    for(int i=0; i<agg_res.size()-1; i++) {
-      values[i]->to_string(ss);
-      ss<<" | ";
+    for(auto &agg_res:agg_res_v.tuples()){
+      const std::vector<std::shared_ptr<TupleValue>> &values = agg_res.values();
+      for(int i=0; i<agg_res.size()-1; i++) {
+        values[i]->to_string(ss);
+        ss<<" | ";
+      }
+      values.back()->to_string(ss);
+      ss<<std::endl;
     }
-    values.back()->to_string(ss);
-    ss<<std::endl;
   }
 
   
