@@ -94,11 +94,11 @@ public:
     }
 
 private:
-    ConDesc  left_;
-    ConDesc  right_;
+    ConDesc  left_{};
+    ConDesc  right_{};
 //    AttrType attr_type_ = UNDEFINED;
-    int left_attr_type_;
-    int right_attr_type_;
+    int left_attr_type_{};
+    int right_attr_type_{};
     CompOp   comp_op_ = NO_OP;
 
 
@@ -118,8 +118,8 @@ public:
 
 
 private:
-  RelAttr left_;
-  RelAttr right_;
+  RelAttr left_{};
+  RelAttr right_{};
   CompOp comp_op_ = NO_OP;
 };
 
