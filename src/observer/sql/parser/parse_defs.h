@@ -79,6 +79,11 @@ typedef struct _OrderDescription{
     char *attribute_name;
 }OrderDescription;
 
+typedef struct {
+    char *relation_name;
+    char *attribute_name;
+}GroupByDescription;
+
 //属性值
 typedef struct _Value {
     int type;  // type of value
@@ -124,6 +129,8 @@ typedef struct {
     Condition conditions[MAX_NUM];    // conditions in Where clause
     size_t    order_num;
     OrderDescription order_des[MAX_NUM];
+    GroupByDescription group_des[MAX_NUM];
+    size_t    group_num;
 } Selects;
 
 // struct of insert
@@ -242,7 +249,7 @@ void relation_attr_destroy(RelAttr *relation_attr);
 void relation_attr_with_agg_init(RelAttr *relation_attr, const char *agg_name, 
                                   const char *relation_name, const char *attribute_name);
 void relation_order_init(OrderDescription *order_desc, const char *relation_name, const char *attribute_name, OrderType order_type);
-
+void relation_group_init(GroupByDescription *group_desc,const char *relation_name,const char *attribute_name);
 void value_init_null(Value *value);
 void value_init_integer(Value *value, int v);
 void value_init_float(Value *value, float v);
@@ -263,6 +270,7 @@ void selects_append_relation(Selects *selects, const char *relation_name);
 void selects_append_conditions(Selects *selects, Condition conditions[], size_t condition_num);
 //void selects_append_orders(Selects *selects, OrderDescription *order);
 void selects_append_orders(Selects *selects, OrderDescription orders[], size_t order_num);
+void selects_append_groups(Selects *selects, GroupByDescription groups[], size_t group_num);
 void selects_destroy(Selects *selects);
 
 void inserts_init(Inserts *inserts, const char *relation_name, Value values[], size_t value_num, const int row_end[], size_t row_num);

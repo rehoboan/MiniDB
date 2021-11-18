@@ -152,17 +152,18 @@ public:
   void print(std::ostream &os) const;
   void print(std::ostream &os, std::vector<std::pair<const char *, const char *>> &select_columns, bool is_multi_table);
 
-  void sort(size_t i, OrderDescription Description[2]);
+
+
 
 public:
   const TupleSchema &schema() const {
     return schema_;
   }
   RC sort(Selects selects);
+  std::unordered_map<std::string,std::vector<Tuple>> set_group_by(Selects selects);
 private:
   std::vector<Tuple> tuples_;
   TupleSchema schema_;
-
 
 
 };

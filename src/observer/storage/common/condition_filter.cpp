@@ -194,7 +194,7 @@ bool DefaultConditionFilter::filter(const Record &rec) const
     right_value = (char *)(rec.data + right_.attr_offset);
     char * data = rec.data;
     int null_v = *(int*)(data+TableMeta::null_field_offset());
-    left_null = (null_v & (1 << right_.index));
+    right_null = (null_v & (1 << right_.index));
     if(!right_null && TYPE(right_attr_type_) == TEXTS){
       right_type = CHARS;
       RID rid;

@@ -34,7 +34,8 @@ typedef struct ParserContext {
   OrderDescription orders[MAX_NUM];
   OrderType	order_type;
 
-
+  size_t	group_num;
+  GroupByDescription	groups[MAX_NUM];
 
 
 } ParserContext;
@@ -428,13 +429,13 @@ update:			/*  update 语句的语法解析树*/
 		}
     ;
 select:				/*  select 语句的语法解析树*/
-    SELECT select_attr FROM ID rel_list where opt_order SEMICOLON
+    SELECT select_attr FROM ID rel_list where opt_group opt_order SEMICOLON
 	{
 			// CONTEXT->ssql->sstr.selection.relations[CONTEXT->from_length++]=$4;
 			selects_append_relation(&CONTEXT->ssql->sstr.selection, $4);
-
 			selects_append_conditions(&CONTEXT->ssql->sstr.selection, CONTEXT->conditions, CONTEXT->condition_length);
 			selects_append_orders(&CONTEXT->ssql->sstr.selection, CONTEXT->orders, CONTEXT->order_num);
+			selects_append_groups(&CONTEXT->ssql->sstr.selection, CONTEXT->groups, CONTEXT->group_num);
 
 			CONTEXT->ssql->flag=SCF_SELECT;//"select";
 			// CONTEXT->ssql->sstr.selection.attr_num = CONTEXT->select_length;
@@ -445,13 +446,15 @@ select:				/*  select 语句的语法解析树*/
 			CONTEXT->select_length=0;
 			CONTEXT->value_length = 0;
 			CONTEXT->order_num = 0;
+			CONTEXT->group_num = 0;
 
 	}
-	| SELECT select_attr FROM ID join_list where opt_order SEMICOLON
+	| SELECT select_attr FROM ID join_list where opt_group opt_order SEMICOLON
 	{
 		selects_append_relation(&CONTEXT->ssql->sstr.selection, $4);
 		selects_append_conditions(&CONTEXT->ssql->sstr.selection, CONTEXT->conditions, CONTEXT->condition_length);
 		selects_append_orders(&CONTEXT->ssql->sstr.selection, CONTEXT->orders, CONTEXT->order_num);
+		selects_append_groups(&CONTEXT->ssql->sstr.selection, CONTEXT->groups, CONTEXT->group_num);
 		CONTEXT->ssql->flag = SCF_SELECT;
 
 		//临时变量清0
@@ -460,6 +463,7 @@ select:				/*  select 语句的语法解析树*/
 		CONTEXT->select_length = 0;
 		CONTEXT->value_length = 0;
 		CONTEXT->order_num = 0;
+		CONTEXT->group_num = 0;
 	}
 	;
 
@@ -609,10 +613,25 @@ where:
     ;
 
 opt_group:
+	|GROUP BY column_ref_commalist
+	;
 
-	|GROUP BY expr_list {
-  $$ = new GroupByDescription();
-  $$->columns = $3;
+column_ref_commalist:
+		column_ref
+	|	column_ref_commalist COMMA column_ref
+	;
+
+column_ref:
+		ID {
+		GroupByDescription group;
+		relation_group_init(&group,NULL,$1);
+		CONTEXT->groups[CONTEXT->group_num++] = group;
+		}
+	|	ID DOT ID{
+		GroupByDescription group;
+		relation_group_init(&group,$1,$3);
+		CONTEXT->groups[CONTEXT->group_num++] = group;
+
 	}
 	;
 

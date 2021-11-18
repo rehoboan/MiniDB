@@ -14,6 +14,7 @@ See the Mulan PSL v2 for more details. */
 
 #include "sql/executor/tuple.h"
 #include <algorithm>
+#include <sstream>
 
 Tuple::Tuple(const Tuple &other) {
   LOG_PANIC("Copy constructor of tuple is not supported");
@@ -305,6 +306,37 @@ RC TupleSet::sort(Selects selects) {
     );
   return RC::SUCCESS;
 
+}
+
+std::unordered_map<std::string,std::vector<Tuple>>  TupleSet::set_group_by(Selects selects) {
+  std::unordered_map<std::string,std::vector<Tuple>> group_map;
+  const std::vector<Tuple> &tuples = tuples_;
+  int field_index;
+  std::vector<int> group_index_v;
+  for (int i = 0; i < selects.group_num; ++i) {
+    if (selects.group_des[i].relation_name == nullptr) {
+      field_index = schema_.index_of_field(selects.relations[0], selects.group_des[i].attribute_name);
+    } else {
+      field_index = schema_.index_of_field(selects.group_des[i].relation_name, selects.group_des[i].attribute_name);
+    }
+    group_index_v.push_back(field_index);
+  }
+  std::stringstream key;
+
+  for(const Tuple &tuple : tuples) {
+    for (int & group_index : group_index_v){
+       tuple.get(group_index).to_string(key);
+    }
+    group_map[key.str()];
+  }
+
+  for(const Tuple &tuple : tuples) {
+    for (int & group_index : group_index_v){
+      tuple.get(group_index).to_string(key);
+    }
+    group_map[key.str()].push_back(tuple);
+  }
+  return group_map;
 }
 
 

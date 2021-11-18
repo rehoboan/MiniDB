@@ -13,7 +13,8 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include <string>
-#include <sstream>
+
+
 
 #include "execute_stage.h"
 
@@ -449,7 +450,7 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
     is_agg = true;
   }
 
-//  res_table
+//  order table
   if (sql->sstr.selection.order_num > 0){
     RC rc = res_table.sort(sql->sstr.selection);
     if (rc == RC::SCHEMA_FIELD_NOT_EXIST){
@@ -457,6 +458,20 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
       return rc;
     }
   }
+
+//  group by table
+  if(sql->sstr.selection.group_num > 0){
+
+    std::unordered_map<std::string,std::vector<Tuple>> group_map = res_table.set_group_by(sql->sstr.selection);
+//    if (rc != RC::SUCCESS){
+//      end_trx_if_need(session, trx, false);
+//      return rc;
+//    }
+  }
+
+  
+
+
 
   if(!is_agg) {
     res_table.print(ss, select_columns, is_multi_table);

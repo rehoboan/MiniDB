@@ -199,7 +199,6 @@ RC AggregationExeNode::execute(Tuple &tuple, std::vector<const char *> &agg_colu
   std::unordered_map<const char *, int> map;
   rc = init_index_map(map);
 
-  
   std::vector<AggValue> res;
   std::unordered_map<const char *, int> avg_count; //对相关列进行avg的计数操作
   for(int i=0; i < agg_infos_.size(); i++) {
