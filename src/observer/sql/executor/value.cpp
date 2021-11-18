@@ -12,14 +12,12 @@ See the Mulan PSL v2 for more details. */
 
 union ReturnValue {
     float value_f;
-    int value_i;
     char *value_s;
 };
 
 void modify_return_value(int type, ReturnValue &ret, const char *data){
   switch (type){
-    case INTS:
-      ret.value_i = *(int *)data;
+    case INTS:;
       break;
     case FLOATS:
       ret.value_f = *(float *)data;
@@ -78,7 +76,6 @@ const ReturnValue switch_data_type(int source_type, int target_type, const char 
         }
           break;
         case INTS:{
-          res.value_i = (int)*(float *)data;
         }
         default:
           break;

@@ -30,7 +30,6 @@ class Table;
 
 union ReturnValue {
     float value_f;
-    int value_i;
     char *value_s;
 };
 
@@ -67,17 +66,17 @@ public:
 class DefaultConditionFilter : public ConditionFilter {
 public:
     DefaultConditionFilter();
-    virtual ~DefaultConditionFilter();
+    ~DefaultConditionFilter() override;
 
 //    RC init(const ConDesc &left, const ConDesc &right, AttrType attr_type, CompOp comp_op);
     RC init(const ConDesc &left, const ConDesc &right, int left_attr_type, int right_attr_type, CompOp comp_op);
     RC init(Table &table, const Condition &condition);
 
 
-  virtual bool filter(const Record &rec) const;
-  virtual bool filter(const Tuple &tuple, const TupleSchema &tuple_schema) const {return false;}
-  virtual bool filter(const Tuple &left_tuple, const TupleSchema &left_schema, 
-                      const Tuple &right_tuple, const TupleSchema &right_schema) const {return false;}  
+  bool filter(const Record &rec) const override;
+  bool filter(const Tuple &tuple, const TupleSchema &tuple_schema) const override {return false;}
+  bool filter(const Tuple &left_tuple, const TupleSchema &left_schema,
+                      const Tuple &right_tuple, const TupleSchema &right_schema) const override {return false;}
 
 
 public:
@@ -107,14 +106,14 @@ private:
 class JoinConditionFilter : public ConditionFilter {
 public:
   JoinConditionFilter();
-  virtual ~JoinConditionFilter();
+  ~JoinConditionFilter() override;
 
   RC init(const RelAttr &left, const RelAttr &right, CompOp comp_op);
 
-  virtual bool filter(const Tuple &tuple, const TupleSchema &tuple_schema) const;
-  virtual bool filter(const Tuple &left_tuple, const TupleSchema &left_schema, 
-                      const Tuple &right_tuple, const TupleSchema &right_schema) const;
-  virtual bool filter(const Record &rec) const {return false;} //nothing to do here
+  bool filter(const Tuple &tuple, const TupleSchema &tuple_schema) const override;
+  bool filter(const Tuple &left_tuple, const TupleSchema &left_schema,
+                      const Tuple &right_tuple, const TupleSchema &right_schema) const override;
+  bool filter(const Record &rec) const override {return false;} //nothing to do here
 
 
 private:
@@ -126,18 +125,18 @@ private:
 class CompositeConditionFilter : public ConditionFilter {
 public:
     CompositeConditionFilter() = default;
-    virtual ~CompositeConditionFilter();
+    ~CompositeConditionFilter() override;
 
 
     RC init(const ConditionFilter *filters[], int filter_num);
     RC init(Table &table, const Condition *conditions, int condition_num);
-    virtual bool filter(const Record &rec) const;
+    bool filter(const Record &rec) const override;
 
 
-  virtual bool filter(const Tuple &tuple, const TupleSchema &tuple_schema) const;
+  bool filter(const Tuple &tuple, const TupleSchema &tuple_schema) const override;
 
-  virtual bool filter(const Tuple &left_tuple, const TupleSchema &left_schema, 
-                      const Tuple &right_tuple, const TupleSchema &right_schema) const;
+  bool filter(const Tuple &left_tuple, const TupleSchema &left_schema,
+                      const Tuple &right_tuple, const TupleSchema &right_schema) const override;
 
 public:
     int filter_num() const {
