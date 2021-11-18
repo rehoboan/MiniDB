@@ -109,7 +109,7 @@ int compare_data(int left_type, const char *left_data, int right_type, const cha
     float right = switch_data_type(right_type, FLOATS, right_data).value_f;
     float diff = left - right;
 
-    if(abs(diff) >= 0 && abs(diff) <= 0.000001){
+    if(std::abs(diff) >= 0 && std::abs(diff) <= 0.000001){
       res = 0;
     }
     else if(diff < 0){

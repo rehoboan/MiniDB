@@ -468,14 +468,10 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
 //      return rc;
 //    }
   }
-
-  
-
-
-
   if(!is_agg) {
     res_table.print(ss, select_columns, is_multi_table);
   } else {
+
     AggregationExeNode agg_node;
     rc = create_aggregation_executor(trx, res_table, agg_infos, agg_node, session_event);
     //agg_node.init(trx, &res_table, agg_infos);
