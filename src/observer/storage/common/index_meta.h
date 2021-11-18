@@ -30,7 +30,7 @@ class IndexMeta {
 public:
     IndexMeta() = default;
 
-    RC init(const char *name, std::vector<FieldMeta *> field_metas,int unique);
+    RC init(const char *name, const std::vector<FieldMeta *>& field_metas,int unique);
     int getUnique(){  return unique;}
 public:
     const char *name() const;

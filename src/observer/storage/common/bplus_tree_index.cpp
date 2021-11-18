@@ -13,13 +13,15 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include "storage/common/bplus_tree_index.h"
+
+#include <utility>
 #include "common/log/log.h"
 
 BplusTreeIndex::~BplusTreeIndex() noexcept {
   close();
 }
 
-RC BplusTreeIndex::create(const char *file_name, IndexMeta &index_meta, std::vector<FieldMeta *> field_metas) {
+RC BplusTreeIndex::create(const char *file_name, IndexMeta &index_meta, const std::vector<FieldMeta *>& field_metas) {
   if (inited_) {
     return RC::RECORD_OPENNED;
   }
@@ -40,7 +42,7 @@ RC BplusTreeIndex::open(const char *file_name, IndexMeta &index_meta, std::vecto
   if (inited_) {
     return RC::RECORD_OPENNED;
   }
-  RC rc = Index::init(index_meta, field_metas);
+  RC rc = Index::init(index_meta, std::move(field_metas));
   if (rc != RC::SUCCESS) {
     return rc;
   }
@@ -73,7 +75,7 @@ RC BplusTreeIndex::delete_entry(const char *record, const RID *rid) {
 }
 
 IndexScanner *BplusTreeIndex::create_scanner(CompOp comp_op, const char *value) {
-  BplusTreeScanner *bplus_tree_scanner = new BplusTreeScanner(index_handler_);
+  auto *bplus_tree_scanner = new BplusTreeScanner(index_handler_);
   RC rc = bplus_tree_scanner->open(comp_op, value);
   if (rc != RC::SUCCESS) {
     LOG_ERROR("Failed to open index scanner. rc=%d:%s", rc, strrc(rc));
@@ -81,7 +83,7 @@ IndexScanner *BplusTreeIndex::create_scanner(CompOp comp_op, const char *value) 
     return nullptr;
   }
 
-  BplusTreeIndexScanner *index_scanner = new BplusTreeIndexScanner(bplus_tree_scanner);
+  auto *index_scanner = new BplusTreeIndexScanner(bplus_tree_scanner);
   return index_scanner;
 }
 

@@ -21,15 +21,15 @@ See the Mulan PSL v2 for more details. */
 class BplusTreeIndex : public Index {
 public:
   BplusTreeIndex() = default;
-  virtual ~BplusTreeIndex() noexcept;
+  ~BplusTreeIndex() noexcept override;
 
-  RC create(const char *file_name, IndexMeta &index_meta, std::vector<FieldMeta *> field_metas);
+  RC create(const char *file_name, IndexMeta &index_meta, const std::vector<FieldMeta *>& field_metas);
 
   RC open(const char *file_name, IndexMeta &index_meta, std::vector<FieldMeta *> field_metas);
 
-  int getUnique();
+  int getUnique() override;
 
-  RC insert_entry(const char *record, const RID *rid, int unique);
+  RC insert_entry(const char *record, const RID *rid, int unique) override;
 
   RC close();
 
@@ -46,7 +46,7 @@ private:
 
 class BplusTreeIndexScanner : public IndexScanner {
 public:
-  BplusTreeIndexScanner(BplusTreeScanner *tree_scanner);
+  explicit BplusTreeIndexScanner(BplusTreeScanner *tree_scanner);
   ~BplusTreeIndexScanner() noexcept override;
 
   RC next_entry(RID *rid) override;
