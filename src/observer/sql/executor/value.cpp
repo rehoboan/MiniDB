@@ -8,6 +8,7 @@ EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
+#include <cmath>
 #include "sql/executor/value.h"
 
 union ReturnValue {
@@ -161,7 +162,7 @@ bool IntValue::is_null() const {
 }
 
 void FloatValue::to_string(std::ostream &os) const {
-  os << std::fixed << std::setprecision(2) << value_;
+  os << round(value_*100)/100.0;
 }
 
 void FloatValue::set_value(float value){
