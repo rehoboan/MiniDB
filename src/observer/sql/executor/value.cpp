@@ -181,13 +181,12 @@ int in_op(int left_type, const char *left_data, int right_type, void *right_data
       }
       return res;
     }
-    break;
     case FLOATS: {
       float left = switch_data_type(left_type, FLOATS, left_data).value_f;
       float* rights = (float*)right_data_head;
       for(int i=0; i<right_data_num; i++){
         float diff = left - rights[i];
-        if(abs(diff)>=0 && abs(diff) <= 0.000001) {
+        if(std::abs(diff)>=0 && std::abs(diff) <= 0.000001) {
           res = 1;
           break;
         }

@@ -13,8 +13,7 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include <string>
-
-
+#include <sstream>
 
 #include "execute_stage.h"
 
