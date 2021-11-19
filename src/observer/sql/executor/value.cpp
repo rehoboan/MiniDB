@@ -161,7 +161,7 @@ bool IntValue::is_null() const {
 }
 
 void FloatValue::to_string(std::ostream &os) const {
-   os <<value_;
+  os << std::setprecision(2) << value_;
 }
 
 void FloatValue::set_value(float value){
