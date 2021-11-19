@@ -27,7 +27,6 @@ struct IndexFileHeader {
     int key_length;
 
     PageNum root_page; // 初始时，root_page一定是1
-    int node_num;
     int order;
 };
 
@@ -167,13 +166,13 @@ private:
 private:
     BplusTreeHandler   & index_handler_;
     bool opened_ = false;
-    CompOp comp_op_ = NO_OP;                      // 用于比较的操作符
+    CompOp comp_op_;                              // 用于比较的操作符
     const char *value_ = nullptr;		              // 与属性行比较的值
-    int num_fixed_pages_ = -1;                    // 固定在缓冲区中的页，与指定的页面固定策略有关
+    int num_fixed_pages_{};	                        // 固定在缓冲区中的页，与指定的页面固定策略有关
     int pinned_page_count_ = 0;                   // 实际固定在缓冲区的页面数
-    BPPageHandle page_handles_[BP_BUFFER_SIZE];   // 固定在缓冲区页面所对应的页面操作列表
-    int next_index_of_page_handle_ = -1;          // 当前被扫描页面的操作索引
-    int index_in_node_ = -1;                      // 当前B+ Tree页面上的key index
+    BPPageHandle page_handles_[BP_BUFFER_SIZE]{};   // 固定在缓冲区页面所对应的页面操作列表
+    int next_index_of_page_handle_{};               // 当前被扫描页面的操作索引
+    int index_in_node_{};                           // 当前B+ Tree页面上的key index
     PageNum next_page_num_ = -1;                  // 下一个将要被读入的页面号
 };
 

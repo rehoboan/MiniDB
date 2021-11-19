@@ -13,6 +13,8 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include "sql/executor/tuple.h"
+#include <algorithm>
+#include <sstream>
 
 Tuple::Tuple(const Tuple &other) {
   LOG_PANIC("Copy constructor of tuple is not supported");
@@ -190,7 +192,7 @@ void TupleSet::print(std::ostream &os) const {
 
 
 void TupleSet::print(std::ostream &os, std::vector<std::pair<const char *, const char *>> &select_columns, bool is_multi_table) {
-  if (schema_.fields().empty() || select_columns.size()==0) {
+  if (schema_.fields().empty() || select_columns.empty()) {
     LOG_WARN("Got empty schema");
     return;
   }
@@ -218,6 +220,7 @@ void TupleSet::print(std::ostream &os, std::vector<std::pair<const char *, const
   os<<select_columns.back().second<<std::endl;
 
   //print select result
+
   for (const Tuple &item : tuples_) {
     const std::vector<std::shared_ptr<TupleValue>> &values = item.values();
     for(int i=0; i<select_columns_id.size()-1; i++) {
@@ -255,6 +258,91 @@ const Tuple &TupleSet::get(int index) const {
 const std::vector<Tuple> &TupleSet::tuples() const {
   return tuples_;
 }
+
+//bool TupleSet::comparison(const Tuple &t1,const Tuple &t2){
+//  if(order_num==1){
+//
+//  }
+//
+//}
+
+
+RC TupleSet::sort(SubSelects subselects) {
+  TupleSchema schema = schema_;
+  for (int i = 0; i < subselects.order_num; ++i) {
+    int field_index;
+    if (subselects.order_des[i].relation_name == nullptr) {
+      field_index = schema.index_of_field(subselects.relations[0], subselects.order_des[i].attribute_name);
+    } else {
+      field_index = schema.index_of_field(subselects.order_des[i].relation_name, subselects.order_des[i].attribute_name);
+    }
+    if (field_index == -1) {
+      return RC::SCHEMA_FIELD_NOT_EXIST;
+    }
+  }
+
+  std::sort(tuples_.begin(), tuples_.end(),
+              [subselects, schema](const Tuple &t1, const Tuple &t2) {
+                  int i = 0;
+                  int ret = 0;
+                  while (true){
+                    int field_index;
+                    if (subselects.order_des[i].relation_name == nullptr) {
+                      field_index = schema.index_of_field(subselects.relations[0], subselects.order_des[i].attribute_name);
+                    } else {
+                      field_index = schema.index_of_field(subselects.order_des[i].relation_name, subselects.order_des[i].attribute_name);
+                    }
+                    ret = t1.get(field_index).compare(t2.get(field_index));
+                    i++;
+                    if(ret != 0 || i==subselects.order_num){
+                      break;
+                    }
+                  }
+                  if (subselects.order_des[i-1].type == kOrderDesc) return ret > 0;
+                  else return ret < 0;
+
+  }
+
+    );
+  return RC::SUCCESS;
+
+}
+
+RC  TupleSet::set_group_by(SubSelects subselects, std::unordered_map<std::string,TupleSet> &group_map) {
+
+  int field_index;
+  std::vector<int> group_index_v;
+  for (int i = 0; i < subselects.group_num; ++i) {
+    if (subselects.group_des[i].relation_name == nullptr) {
+      field_index = schema_.index_of_field(subselects.relations[0], subselects.group_des[i].attribute_name);
+    } else {
+      field_index = schema_.index_of_field(subselects.group_des[i].relation_name, subselects.group_des[i].attribute_name);
+    }
+    if (field_index == -1){
+      return RC::SCHEMA_FIELD_NOT_EXIST;
+    }
+
+    group_index_v.push_back(field_index);
+  }
+
+  for(Tuple &tuple : tuples_) {
+    std::stringstream key;
+    for (int & group_index : group_index_v){
+       tuple.get(group_index).to_string(key);
+    }
+    group_map[key.str()];
+  }
+
+  for(Tuple &tuple : tuples_) {
+    std::stringstream key;
+    for (int & group_index : group_index_v){
+      tuple.get(group_index).to_string(key);
+    }
+    group_map[key.str()].add(std::move(tuple));
+  }
+  return RC::SUCCESS;
+}
+
 
 /////////////////////////////////////////////////////////////////////////////
 TupleRecordConverter::TupleRecordConverter(Table *table, TupleSet &tuple_set) :

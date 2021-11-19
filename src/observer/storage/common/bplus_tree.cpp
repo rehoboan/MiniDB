@@ -17,16 +17,8 @@ See the Mulan PSL v2 for more details. */
 #include "common/log/log.h"
 #include "sql/parser/parse_defs.h"
 
-int float_compare(float f1, float f2) {
-  float result = f1 - f2;
-  if (result < 0.000001 && result > -0.000001) {
-    return 0;
-  }
-  return result > 0 ? 1: -1;
-}
-
 IndexNode * BplusTreeHandler::get_index_node(char *page_data) const {
-  IndexNode *node = (IndexNode  *)(page_data + sizeof(IndexFileHeader));
+  auto *node = (IndexNode  *)(page_data + sizeof(IndexFileHeader));
   node->keys = (char *)node + sizeof(IndexNode);
   node->rids = (RID *)(node->keys + file_header_.order * file_header_.key_length);
   return node;
@@ -71,7 +63,7 @@ RC BplusTreeHandler::create(const char *file_name, std::vector<FieldMeta *> fiel
     LOG_ERROR("Failed to get page num. file name=%s, rc=%d:%s", file_name, rc, strrc(rc));
     return rc;
   }
-  IndexFileHeader *file_header =(IndexFileHeader *)pdata;
+  auto *file_header =(IndexFileHeader *)pdata;
   file_header->attr_num = field_metas.size();
   int total_len = 0;
   for(int i = 0; i < field_metas.size(); i++){
@@ -80,7 +72,6 @@ RC BplusTreeHandler::create(const char *file_name, std::vector<FieldMeta *> fiel
     total_len += file_header->attr_length[i];
   }
   file_header->key_length = total_len + sizeof(RID);
-  file_header->node_num = 1;
   file_header->order=((int)BP_PAGE_DATA_SIZE-sizeof(IndexFileHeader)-sizeof(IndexNode))/(total_len+2*sizeof(RID));
   file_header->root_page = page_num;
 
@@ -182,7 +173,12 @@ int CompareKey(const char *pdata, const char *pkey,int attr_type,int attr_length
     case FLOATS: {
       f1 = *(float *) pdata;
       f2 = *(float *) pkey;
-      return float_compare(f1, f2);
+      if (f1 > f2)
+        return 1;
+      if (f1 < f2)
+        return -1;
+      if (f1 == f2)
+        return 0;
     }
       break;
     case CHARS: {
@@ -401,7 +397,7 @@ RC BplusTreeHandler::insert_into_leaf_after_split(PageNum leaf_page, const char 
   BPPageHandle  page_handle1,page_handle2;
   IndexNode *leaf,*new_node;
   PageNum new_page,parent_page;
-  RID *temp_pointers,tmprid;
+  RID *temp_pointers,tmprid{};
   char *temp_keys,*new_key;
   char *pdata;
   int insert_pos,split,i,j,tmp;
@@ -533,7 +529,7 @@ RC BplusTreeHandler::insert_intern_node(PageNum parent_page,PageNum left_page,Pa
   BPPageHandle page_handle;
   char *pdata;
   IndexNode *node;
-  RID rid;
+  RID rid{};
   RC rc;
 
   rc = disk_buffer_pool_->get_this_page(file_id_, parent_page, &page_handle);
@@ -575,7 +571,7 @@ RC BplusTreeHandler::insert_intern_node_after_split(PageNum inter_page,PageNum l
   BPPageHandle page_handle1,page_handle2,child_page_handle;
   IndexNode *inter_node,*new_node,*child_node;
   PageNum new_page,child_page,parent_page;
-  RID *temp_pointers,tmprid;
+  RID *temp_pointers,tmprid{};
   char *temp_keys,*new_key;
   char *pdata;
   int insert_pos,i,j,split;
@@ -772,7 +768,7 @@ RC BplusTreeHandler::insert_into_new_root(PageNum left_page, const char *pkey, P
   BPPageHandle page_handle;
   IndexNode *root,*left,*right;
   PageNum root_page;
-  RID rid;
+  RID rid{};
   char *pdata;
   rc = disk_buffer_pool_->allocate_page(file_id_, &page_handle);
   if(rc!=SUCCESS){
@@ -1623,7 +1619,7 @@ RC BplusTreeHandler::find_first_index_satisfied(CompOp compop, const char *key, 
   char *pdata,*pkey;
   RC rc;
   int i,tmp;
-  RID rid;
+  RID rid{};
   if(compop == LESS_THAN || compop == LESS_EQUAL || compop == NOT_EQUAL){
     rc = get_first_leaf_page(page_num);
     if(rc != SUCCESS){

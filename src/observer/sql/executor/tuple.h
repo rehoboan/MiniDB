@@ -123,7 +123,6 @@ public:
 private:
   std::vector<TupleField> fields_;
 
-
 };
 
 class TupleSet {
@@ -151,13 +150,22 @@ public:
 
   void print(std::ostream &os) const;
   void print(std::ostream &os, std::vector<std::pair<const char *, const char *>> &select_columns, bool is_multi_table);
+
+
+
+
 public:
   const TupleSchema &schema() const {
     return schema_;
   }
+  RC sort(SubSelects subselects);
+  RC set_group_by(SubSelects subselects, std::unordered_map<std::string,TupleSet> &group_map);
+//  std::unordered_map<std::string,TupleSet> set_group_by(Selects selects);
 private:
   std::vector<Tuple> tuples_;
   TupleSchema schema_;
+
+
 };
 
 class TupleRecordConverter {

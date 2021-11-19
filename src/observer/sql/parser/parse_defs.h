@@ -47,14 +47,6 @@ See the Mulan PSL v2 for more details. */
 #include <stddef.h>
 #include <stdbool.h>
 
-// template<class T>
-// struct MultiValueLinkNode {
-//   T value;
-
-//   MultiValueLinkNode<T> *next_value;
-
-//   //MultiValueLinkNode(): next_value(nullptr){}
-// };
 
 //属性结构体
 typedef struct {
@@ -79,11 +71,22 @@ typedef enum {
 
 //属性值类型
 
-
 typedef enum {COUNTS, MAXS, MINS, AVGS} AggType;
 
 typedef enum { UNDEFINED, CHARS, INTS, FLOATS, DATES, TEXTS, SUBSELECT} AttrType;
 
+typedef enum { kOrderAsc, kOrderDesc } OrderType;
+
+typedef struct _OrderDescription{
+    OrderType type;
+    char *relation_name;
+    char *attribute_name;
+}OrderDescription;
+
+typedef struct {
+    char *relation_name;
+    char *attribute_name;
+}GroupByDescription;
 
 //属性值
 typedef struct _Value {
@@ -100,7 +103,7 @@ typedef struct _AggValue {
     const char *string_value;
     time_t date_value;
   }values;
-  int value_idx;  //下表从1开始
+  int value_idx;  // 下表从1开始
 } AggValue;
 
 typedef struct _AggInfo {
@@ -129,16 +132,21 @@ typedef struct _Condition {
 typedef struct {
     size_t    attr_num;               // Length of attrs in Select clause
     RelAttr   attributes[MAX_NUM];    // attrs in Select clause
-    size_t    relation_num;           // Length of relations in Fro clause
+    size_t    relation_num;           // Length of relations in From clause
     char *    relations[MAX_NUM];     // relations in From clause
     size_t    condition_num;          // Length of conditions in Where clause
     Condition conditions[MAX_NUM];    // conditions in Where clause
-} SubSelects;
+    size_t    order_num;
+    OrderDescription order_des[MAX_NUM];
+    GroupByDescription group_des[MAX_NUM];
+    size_t    group_num;
+}SubSelects;
 
 typedef struct {
     SubSelects subselects[MAX_SELECTS_NUM];
     size_t select_num; //max subselect index
 }Selects;
+
 
 // struct of insert
 typedef struct {
@@ -261,7 +269,8 @@ void relation_attr_init(RelAttr *relation_attr, const char *relation_name, const
 void relation_attr_destroy(RelAttr *relation_attr);
 void relation_attr_with_agg_init(RelAttr *relation_attr, const char *agg_name, 
                                   const char *relation_name, const char *attribute_name);
-
+void relation_order_init(OrderDescription *order_desc, const char *relation_name, const char *attribute_name, OrderType order_type);
+void relation_group_init(GroupByDescription *group_desc,const char *relation_name,const char *attribute_name);
 void value_init_null(Value *value);
 void value_init_integer(Value *value, int v);
 void value_init_float(Value *value, float v);
@@ -283,6 +292,9 @@ void selects_append_attribute(Selects *selects, RelAttr *rel_attr, size_t select
 void selects_append_relation(Selects *selects, const char *relation_name, size_t select_num);
 void selects_append_conditions(Selects *selects, Condition conditions[], size_t condition_num, size_t select_num);
 void selects_append_condition(Selects *selects, Condition *condition, size_t select_num);
+//void selects_append_orders(Selects *selects, OrderDescription *order);
+void selects_append_orders(Selects *selects, OrderDescription orders[], size_t order_num, size_t select_num);
+void selects_append_groups(Selects *selects, GroupByDescription groups[], size_t group_num, size_t select_num);
 void selects_destroy(Selects *selects);
 
 void inserts_init(Inserts *inserts, const char *relation_name, Value values[], size_t value_num, const int row_end[], size_t row_num);

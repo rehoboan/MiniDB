@@ -363,7 +363,7 @@ RID Table::insertText(const char * text, int len){
       *((int*)values[1].data) = rid.slot_num;
     }
     *((int*)values[2].data) = one;
-    memcpy(values[3].data, text + left -one, one);
+    memcpy(values[3].data, text + left - one, one);
 
     char *record_data;
     RC rc = make_record(value_num, values, record_data);

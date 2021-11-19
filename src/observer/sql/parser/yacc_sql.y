@@ -29,7 +29,16 @@ typedef struct ParserContext {
 
   Condition conditions[MAX_NUM];
   CompOp comp;
-	char id[MAX_NUM];
+  char id[MAX_NUM];
+
+  size_t    order_num;
+  OrderDescription orders[MAX_NUM];
+  OrderType	order_type;
+
+  size_t	group_num;
+  GroupByDescription	groups[MAX_NUM];
+
+
 } ParserContext;
 
 //获取子串
@@ -86,7 +95,14 @@ ParserContext *get_context(yyscan_t scanner)
         TABLES
         INDEX
         SELECT
-        DESC
+
+		ORDER
+		BY
+		ASC
+		DESC
+
+		GROUP
+
         SHOW
         SYNC
         INSERT
@@ -105,6 +121,8 @@ ParserContext *get_context(yyscan_t scanner)
         DATE_T //DATE
         TEXT_T //TEXT
         UNIQUE
+
+
 
         HELP
         EXIT
@@ -133,12 +151,11 @@ ParserContext *get_context(yyscan_t scanner)
         NE
 		IN
 
-
-
 %union {
   struct _Attr *attr;
   struct _Condition *condition1;
   struct _Value *value1;
+  struct _OrderDescription *order;
   char *string;
   int number;
   float floats;
@@ -158,7 +175,6 @@ ParserContext *get_context(yyscan_t scanner)
 %type <condition1> condition;
 %type <value1> value;
 %type <number> number;
-
 %%
 
 commands:		//commands or sqls. parser starts here.
@@ -415,12 +431,12 @@ update:			/*  update 语句的语法解析树*/
 		}
     ;
 select:				/*  select 语句的语法解析树*/
-    SELECT select_attr FROM select_from where SEMICOLON
-		{
-			//父查询
-			// CONTEXT->ssql->sstr.selection.relations[CONTEXT->from_length++]=$4;
-			father_query();
 
+    SELECT select_attr FROM select_from where opt_group opt_order SEMICOLON
+	{
+			// CONTEXT->ssql->sstr.selection.relations[CONTEXT->from_length++]=$4;
+			selects_append_orders(&CONTEXT->ssql->sstr.selection, CONTEXT->orders, CONTEXT->order_num, 0);
+			selects_append_groups(&CONTEXT->ssql->sstr.selection, CONTEXT->groups, CONTEXT->group_num, 0);
 
 			CONTEXT->ssql->flag=SCF_SELECT;//"select";
 
@@ -429,15 +445,22 @@ select:				/*  select 语句的语法解析树*/
 			//临时变量清零
 			CONTEXT->condition_length=0;
 			CONTEXT->value_length = 0;
-	}
-	| SELECT select_attr FROM select_join where SEMICOLON
-	{
+			CONTEXT->order_num = 0;
+			CONTEXT->group_num = 0;
 
+	}
+
+	| SELECT select_attr FROM select_join where opt_group opt_order SEMICOLON
+	{
+		selects_append_orders(&CONTEXT->ssql->sstr.selection, CONTEXT->orders, CONTEXT->order_num, 0);
+		selects_append_groups(&CONTEXT->ssql->sstr.selection, CONTEXT->groups, CONTEXT->group_num, 0);
 		CONTEXT->ssql->flag = SCF_SELECT;
 
 		//临时变量清0
 		CONTEXT->condition_length = 0;
 		CONTEXT->value_length = 0;
+		CONTEXT->order_num = 0;
+		CONTEXT->group_num = 0;
 	}
     | SELECT select_attr FROM select_from where 
 		{
@@ -641,16 +664,63 @@ join_list:
 	;
 where:
     /* empty */
-    | WHERE condition condition_list {
-				// CONTEXT->conditions[CONTEXT->condition_length++]=*$2;
-			}
+    | WHERE condition condition_list
     ;
+
+opt_group:
+	|GROUP BY column_ref_commalist
+	;
+
+column_ref_commalist:
+		column_ref
+	|	column_ref_commalist COMMA column_ref
+	;
+
+column_ref:
+		ID {
+		GroupByDescription group;
+		relation_group_init(&group,NULL,$1);
+		CONTEXT->groups[CONTEXT->group_num++] = group;
+		}
+	|	ID DOT ID{
+		GroupByDescription group;
+		relation_group_init(&group,$1,$3);
+		CONTEXT->groups[CONTEXT->group_num++] = group;
+
+	}
+	;
+
+opt_order:
+		/* empty */
+	|	ORDER BY orderby order_list
+	;
+
+order_list:
+	|COMMA orderby order_list
+	;
+orderby:
+| ID opt_order_type{
+	OrderDescription order;
+	relation_order_init(&order, NULL, $1, CONTEXT->order_type);
+        CONTEXT->orders[CONTEXT->order_num++] = order;
+}
+|ID DOT ID opt_order_type{
+	OrderDescription order;
+	relation_order_init(&order, $1, $3, CONTEXT->order_type);
+        CONTEXT->orders[CONTEXT->order_num++] = order;
+}
+
+
+opt_order_type : ASC { CONTEXT->order_type = kOrderAsc; }
+| DESC { CONTEXT->order_type = kOrderDesc; }
+| /* empty */ { CONTEXT->order_type = kOrderAsc; }
+;
+
 condition_list:
     /* empty */
-    | AND condition condition_list {
-				// CONTEXT->conditions[CONTEXT->condition_length++]=*$2;
-			}
+    | AND condition condition_list
     ;
+
 condition:
     ID comOp value
 		{
@@ -831,7 +901,7 @@ condition:
     ;
 
 comOp:
-  	  EQ { CONTEXT->comp = EQUAL_TO; }
+      EQ { CONTEXT->comp = EQUAL_TO; }
     | LT { CONTEXT->comp = LESS_THAN; }
     | GT { CONTEXT->comp = GREAT_THAN; }
     | LE { CONTEXT->comp = LESS_EQUAL; }

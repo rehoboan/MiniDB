@@ -24,14 +24,14 @@ const static Json::StaticString FIELD_NAME("name");
 const static Json::StaticString FIELD_FIELD_NAME("field_name");
 const static Json::StaticString UNIQUE_NAME("unique");
 
-RC IndexMeta::init(const char *name, std::vector<FieldMeta *> field_metas,int _unique) {
+RC IndexMeta::init(const char *name, const std::vector<FieldMeta *>& field_metas,int _unique) {
   if (nullptr == name || common::is_blank(name)) {
     return RC::INVALID_ARGUMENT;
   }
 
   name_ = name;
-  for(int i = 0; i < field_metas.size(); i++){
-    field_.push_back(field_metas[i]->name());
+  for(auto & field_meta : field_metas){
+    field_.emplace_back(field_meta->name());
   }
   unique = _unique;
   return RC::SUCCESS;
@@ -39,9 +39,9 @@ RC IndexMeta::init(const char *name, std::vector<FieldMeta *> field_metas,int _u
 void IndexMeta::to_json(Json::Value &json_value) const {
   json_value[FIELD_NAME] = name_;
   Json::Value fields;
-  for(int i = 0; i < field_.size(); i++){
+  for(const auto & i : field_){
     Json::Value field;
-    field = field_[i];
+    field = i;
     fields.append(field);
   }
   json_value[FIELD_FIELD_NAME] = fields;
@@ -60,7 +60,7 @@ RC IndexMeta::from_json(TableMeta &table, const Json::Value &json_value, IndexMe
     LOG_ERROR("unique name is not a int. json value=%s", name_value.toStyledString().c_str());
     return RC::GENERIC_ERROR;
   }
-  if (!field_value.isArray() || field_value.size() <= 0) {
+  if (!field_value.isArray() || field_value.empty()) {
     LOG_ERROR("Field name of index [%s] is not a array. json value=%s",
               name_value.asCString(), field_value.toStyledString().c_str());
     return RC::GENERIC_ERROR;
@@ -102,7 +102,7 @@ std::vector<std::string> IndexMeta::getFields(){
 void IndexMeta::desc(std::ostream &os) const {
   os << "index name=" << name_
      << ", field=" ;
-  for(int i = 0; i < field_.size(); i++){
-    os << field_[i] << " ";
+  for(const auto & i : field_){
+    os << i << " ";
   }
 }

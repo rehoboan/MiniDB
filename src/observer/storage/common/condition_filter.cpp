@@ -18,7 +18,7 @@ See the Mulan PSL v2 for more details. */
 using namespace common;
 
 ConditionFilter::~ConditionFilter()
-{}
+= default;
 
 DefaultConditionFilter::DefaultConditionFilter()
 {
@@ -34,20 +34,10 @@ DefaultConditionFilter::DefaultConditionFilter()
 }
 
 DefaultConditionFilter::~DefaultConditionFilter()
-{}
+= default;
 
 RC DefaultConditionFilter::init(const ConDesc &left, const ConDesc &right, int left_attr_type, int right_attr_type, CompOp comp_op)
 {
-//  if (attr_type < CHARS || attr_type > TEXTS) {
-//    LOG_ERROR("Invalid condition with unsupported attribute type: %d", attr_type);
-//    return RC::INVALID_ARGUMENT;
-//  }
-//
-//  if (comp_op < EQUAL_TO || comp_op >= NO_OP) {
-//    LOG_ERROR("Invalid condition with unsupported compare operation: %d", comp_op);
-//    return RC::INVALID_ARGUMENT;
-//  }
-
   if (left_attr_type < CHARS || left_attr_type > TEXTS) {
     LOG_ERROR("Invalid condition with unsupported attribute type of left: %d", left_attr_type);
     return RC::INVALID_ARGUMENT;
@@ -60,7 +50,6 @@ RC DefaultConditionFilter::init(const ConDesc &left, const ConDesc &right, int l
 
   left_ = left;
   right_ = right;
-//  attr_type_ = attr_type;
   left_attr_type_ = left_attr_type;
   right_attr_type_ = right_attr_type;
   comp_op_ = comp_op;
@@ -86,11 +75,11 @@ int field_type_compare_compatible_table[TEXTS+1][TEXTS+1]={
 RC DefaultConditionFilter::init(Table &table, const Condition &condition)
 {
   TableMeta &table_meta = table.table_meta();
-  ConDesc left;
-  ConDesc right;
+  ConDesc left{};
+  ConDesc right{};
 
-  int type_left = UNDEFINED;
-  int type_right = UNDEFINED;
+  int type_left;
+  int type_right;
 
   if (1 == condition.left_is_attr) {
     left.is_attr = true;
@@ -156,28 +145,38 @@ RC DefaultConditionFilter::init(Table &table, const Condition &condition)
 //  return init(left, right, static_cast<AttrType>(type_left), condition.comp);
 }
 
+//int sign(double l, double r){
+//  if(l - r <0){
+//    return -1;
+//  }else if(l - r >0){
+//    return 1;
+//  }else{
+//    return 0;
+//  }
+//}
+
 bool compare_res_with_op(CompOp op, int cmp_result, bool has_null){
   switch (op){
     case EQUAL_TO:
-      return has_null ? false : (0 == cmp_result);
+      return !has_null && (0 == cmp_result);
     case OP_IS:
-      return has_null ? (0 == cmp_result) : false;
+      return has_null && (0 == cmp_result);
     case LESS_EQUAL:
-      return has_null ? false : (cmp_result <= 0);
+      return !has_null && (cmp_result <= 0);
     case NOT_EQUAL:
-      return has_null ? false : (cmp_result != 0);
+      return !has_null && (cmp_result != 0);
     case OP_IS_NOT:
-      return has_null ? (cmp_result != 0) : false;
+      return has_null && (cmp_result != 0);
     case LESS_THAN:
-      return has_null ? (false) : (cmp_result < 0);
+      return !has_null && (cmp_result < 0);
     case GREAT_EQUAL:
-      return has_null ? (false) : (cmp_result >= 0);
+      return !has_null && (cmp_result >= 0);
     case GREAT_THAN:
-      return has_null ? (false) : (cmp_result > 0);
+      return !has_null && (cmp_result > 0);
     case OP_IN:
-      return has_null ? (false) : (cmp_result > 0);
+      return !has_null && (cmp_result > 0);
     case OP_NOT_IN:
-      return has_null ? (false) : (cmp_result == 0);
+      return has_null && (cmp_result == 0);
 
     default:
       break;
@@ -187,12 +186,11 @@ bool compare_res_with_op(CompOp op, int cmp_result, bool has_null){
 
 bool DefaultConditionFilter::filter(const Record &rec) const
 {
-
   std::string tmp;
-  const char *left_value = nullptr;
+  const char *left_value;
   bool left_null;
   bool right_null;
-  const char *right_value = nullptr;
+  const char *right_value;
   //左类型
   int left_type = left_attr_type_;
   //右类型
@@ -205,7 +203,7 @@ bool DefaultConditionFilter::filter(const Record &rec) const
     left_null = (null_v & (1 << left_.index));
     if(!left_null && TYPE(left_attr_type_) == TEXTS){//左边不为空
       left_type = CHARS;
-      RID rid;
+      RID rid{};
       rid.page_num = *(int*)(left_value);
       rid.slot_num = *(int*)(left_value+4);
       tmp = sys_tbs->getText(rid);
@@ -221,11 +219,11 @@ bool DefaultConditionFilter::filter(const Record &rec) const
     right_null = (null_v & (1 << right_.index));
     if(!right_null && TYPE(right_attr_type_) == TEXTS){
       right_type = CHARS;
-      RID rid;
+      RID rid{};
       rid.page_num = *(int*)(right_value);
       rid.slot_num = *(int*)(right_value+4);
-      std::string tmp = sys_tbs->getText(rid);
-      right_value = tmp.c_str();
+      std::string tmp_ = sys_tbs->getText(rid);
+      right_value = tmp_.c_str();
     }
   }else {
     if(comp_op_ < OP_IN) {
@@ -254,9 +252,9 @@ bool DefaultConditionFilter::filter(const Record &rec) const
 
 
 
-JoinConditionFilter::JoinConditionFilter() {}
+JoinConditionFilter::JoinConditionFilter() = default;
 
-JoinConditionFilter::~JoinConditionFilter() {}
+JoinConditionFilter::~JoinConditionFilter() = default;
 
 
 RC JoinConditionFilter::init(const RelAttr &left, const RelAttr &right, CompOp comp_op) {
@@ -299,7 +297,7 @@ bool JoinConditionFilter::filter(const Tuple &tuple, const TupleSchema &tuple_sc
 }
 bool JoinConditionFilter::filter(const Tuple &left_tuple, const TupleSchema &left_schema, 
                       const Tuple &right_tuple, const TupleSchema &right_schema) const {
-  int res_op = 0;
+  int res_op;
   int idx1 = left_schema.index_of_field(left_.relation_name, left_.attribute_name);
   int idx2 = right_schema.index_of_field(right_.relation_name, right_.attribute_name);
 
@@ -359,10 +357,10 @@ RC CompositeConditionFilter::init(Table &table, const Condition *conditions, int
     return RC::INVALID_ARGUMENT;
   }
 
-  RC rc = RC::SUCCESS;
-  ConditionFilter **condition_filters = new ConditionFilter *[condition_num];
+  RC rc;
+  auto **condition_filters = new ConditionFilter *[condition_num];
   for (int i = 0; i < condition_num; i++) {
-    DefaultConditionFilter *default_condition_filter = new DefaultConditionFilter();
+    auto *default_condition_filter = new DefaultConditionFilter();
     rc = default_condition_filter->init(table, conditions[i]);
     if (rc != RC::SUCCESS) {
       delete default_condition_filter;
@@ -371,7 +369,6 @@ RC CompositeConditionFilter::init(Table &table, const Condition *conditions, int
         condition_filters[j] = nullptr;
       }
       delete[] condition_filters;
-      condition_filters = nullptr;
       return rc;
     }
     condition_filters[i] = default_condition_filter;

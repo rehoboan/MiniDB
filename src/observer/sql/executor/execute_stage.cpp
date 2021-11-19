@@ -13,7 +13,8 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include <string>
-#include <sstream>
+
+
 
 #include "execute_stage.h"
 
@@ -403,6 +404,8 @@ RC ExecuteStage::do_sub_select(bool is_sub, const char *db, const SubSelects &su
   std::vector<std::pair<const char *, const char *>> select_columns;
   //<aggregation column, agginfo>
   std::vector<std::pair<const char *, AggInfo>> agg_infos;
+//  std::unordered_map<const char *, int> selected_group_info_map;
+  std::vector<std::pair<const char *, int>> selected_group_infos;
 
   bool is_multi_table = false;
   //处理带星号的查询,不支持多个属性和*同时出现
@@ -427,26 +430,28 @@ RC ExecuteStage::do_sub_select(bool is_sub, const char *db, const SubSelects &su
       }
   
       //如果该聚集函数名为空，只是普通选择列，将该列加入到selection columns中
-      if(agg_name == nullptr)
-        select_columns.emplace_back(relation_name, attr_name); 
+      if(agg_name == nullptr){
+        select_columns.emplace_back(relation_name, attr_name);
+        selected_group_infos.emplace_back("select_columns",select_columns.size()-1);
+      }
+
       else {//如果是聚集函数列，构造聚集列名（判断是否是单表查询），初始化aggregation信息，加入到agg infos中
         bool display_table = !(subselect.relation_num==1);
         const char *agg_column_name = create_agg_columns_name(relation_name, attr_name, agg_name, display_table);
         AggInfo agg_info;
         init_aggregation(relation_name, attr_name, agg_name, agg_info);        
         agg_infos.emplace_back(agg_column_name, agg_info);
+        selected_group_infos.emplace_back("agg_infos",agg_infos.size()-1);
       }
     }
   }
     //初始化并执行聚集操作
   bool is_agg = false;
+  bool is_group = false;
   std::stringstream ss;
-  if(select_columns.size()>0 && agg_infos.size()>0) {
+  if(select_columns.size()>0 && agg_infos.size()>0 && subselect.group_num == 0) {
     rc = RC::SQL_SYNTAX;
-    char err[256];
-    sprintf("aggregation function and column selection conflict", err);
-    LOG_WARN("aggregation function and column selection conflict");
-    session_event->set_response(err);
+    end_trx_if_need(session, trx, false);
     return rc;
   } else if(agg_infos.size()>0) {
     is_agg = true;
@@ -459,6 +464,29 @@ RC ExecuteStage::do_sub_select(bool is_sub, const char *db, const SubSelects &su
       return RC::MISUSE;
     }
   }
+  if(subselect.group_num > 0){
+    is_group = true;
+  }
+
+//  order table
+  if (subselect.order_num > 0){
+    RC rc = res_table.sort(subselect);
+    if (rc == RC::SCHEMA_FIELD_NOT_EXIST){
+      end_trx_if_need(session, trx, false);
+      return rc;
+    }
+  }
+
+//  group by table
+  std::unordered_map<std::string, TupleSet> group_map;
+  if(is_group){
+    RC rc = res_table.set_group_by(subselect, group_map);
+    if (rc != RC::SUCCESS){
+      end_trx_if_need(session, trx, false);
+      return rc;
+    }
+  }
+
   if(!is_agg) {
     if(is_sub) {
       //todo 修改为按值列表返回(select_columns 中的列)
@@ -486,45 +514,95 @@ RC ExecuteStage::do_sub_select(bool is_sub, const char *db, const SubSelects &su
     }
     res_table.print(ss, select_columns, is_multi_table);
   } else {
+
     AggregationExeNode agg_node;
     rc = create_aggregation_executor(trx, res_table, agg_infos, agg_node, session_event);
-    //agg_node.init(trx, &res_table, agg_infos);
     if(rc != RC::SUCCESS) {
       //end_trx_if_need(session, trx, false);
       return rc;
     }
-    Tuple agg_res;
+
+    TupleSet agg_res_v;
     std::vector<const char *> agg_columns;
-    rc = agg_node.execute(agg_res, agg_columns);
+    std::vector<const char *> sel_columns;
+
+    for(int i=0; i < agg_infos.size(); i++) {
+      const char *agg_column_name = agg_infos[i].first;
+      agg_columns.push_back(agg_column_name);
+    }
+
+    for (int i = 0; i < select_columns.size(); ++i) {
+      const char * attr = select_columns[i].first;
+      const char * real = select_columns[i].second;
+      if (!is_multi_table){
+        sel_columns.push_back(real);
+      }else{
+        char* res_part = new char(strlen(attr) + 1 + strlen(real));
+        std::strcpy(res_part,attr);
+        std::strcat(res_part,".");
+        std::strcat(res_part, real);
+        sel_columns.push_back(res_part);
+      }
+    }
+
+    if(subselect.group_num == 0){
+      Tuple agg_res;
+      rc = agg_node.execute(agg_res, agg_columns, nullptr, select_columns, selected_group_infos);
+      agg_res_v.add(std::move(agg_res));
+    }else{
+      for(auto &it : group_map){
+        Tuple agg_res;
+        agg_node.execute(agg_res, agg_columns, const_cast<std::vector<Tuple> *>(&it.second.tuples()), select_columns,
+                         selected_group_infos);
+        agg_res_v.add(std::move(agg_res));
+      }
+    }
+
+
     if(rc != RC::SUCCESS) {
       //end_trx_if_need(session, trx, false);
       return rc;
     }
     if(is_sub) {
-      if(agg_res.size()>1) {
+      if(agg_res_v.size()>1) {
         LOG_WARN("Subselect support single aggregation function only");
         char err[256];
         sprintf(err, "FAILURE\n");
         session_event->set_response(err);
         return RC::MISUSE;
       }
-      res_tuple.add(agg_res.get_pointer(0));
+      res_tuple.add(agg_res_v.get(0).get_pointer(0));
       return rc;
     }
+
+    //
+
+
     //print aggregation selection columns
-    for(int i=0; i<agg_columns.size()-1; i++) {
-      ss<<agg_columns[i] << " | ";
+    std::vector<const char *> columns;
+    for(auto &it : selected_group_infos){
+      int i = it.second;
+      if(strcmp(it.first,"agg_infos") == 0){
+        columns.push_back(agg_columns[i]);
+      }else{
+        columns.push_back(sel_columns[i]);
+      }
     }
-    ss<<agg_columns.back()<<std::endl;
+    for(int i=0; i<columns.size()-1; i++) {
+      ss<<columns[i] << " | ";
+    }
+    ss<<columns.back()<<std::endl;
 
     //print data
-    const std::vector<std::shared_ptr<TupleValue>> &values = agg_res.values();
-    for(int i=0; i<agg_res.size()-1; i++) {
-      values[i]->to_string(ss);
-      ss<<" | ";
+    for(auto &agg_res:agg_res_v.tuples()){
+      const std::vector<std::shared_ptr<TupleValue>> &values = agg_res.values();
+      for(int i=0; i<agg_res.size()-1; i++) {
+        values[i]->to_string(ss);
+        ss<<" | ";
+      }
+      values.back()->to_string(ss);
+      ss<<std::endl;
     }
-    values.back()->to_string(ss);
-    ss<<std::endl;
   }
   session_event->set_response(ss.str());
   //end_trx_if_need(session, trx, true);

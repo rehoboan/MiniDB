@@ -8,18 +8,17 @@ EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
+#include <cmath>
 #include "sql/executor/value.h"
 
 union ReturnValue {
     float value_f;
-    int value_i;
     char *value_s;
 };
 
 void modify_return_value(int type, ReturnValue &ret, const char *data){
   switch (type){
-    case INTS:
-      ret.value_i = *(int *)data;
+    case INTS:;
       break;
     case FLOATS:
       ret.value_f = *(float *)data;
@@ -97,7 +96,6 @@ const ReturnValue switch_data_type(int source_type, int target_type, const char 
         }
           break;
         case INTS:{
-          res.value_i = (int)*(float *)data;
         }
         default:
           break;
@@ -132,7 +130,7 @@ int compare_data(int left_type, const char *left_data, int right_type, const cha
     float right = switch_data_type(right_type, FLOATS, right_data).value_f;
     float diff = left - right;
 
-    if(abs(diff) >= 0 && abs(diff) <= 0.000001){
+    if(std::abs(diff) >= 0 && std::abs(diff) <= 0.000001){
       res = 0;
     }
     else if(diff < 0){
@@ -255,7 +253,7 @@ bool IntValue::is_null() const {
 }
 
 void FloatValue::to_string(std::ostream &os) const {
-   os <<value_;
+  os << round(value_*100)/100.0;
 }
 
 void FloatValue::set_value(float value){

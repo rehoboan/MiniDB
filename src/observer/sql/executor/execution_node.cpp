@@ -15,6 +15,8 @@ See the Mulan PSL v2 for more details. */
 #include "sql/executor/execution_node.h"
 #include "storage/common/table.h"
 #include "common/log/log.h"
+#include <sstream>
+
 
 SelectExeNode::SelectExeNode() : table_(nullptr) {
 }
@@ -193,13 +195,15 @@ RC AggregationExeNode::init(Trx *trx, const TupleSet *table, std::vector<std::pa
   
 }
 
-RC AggregationExeNode::execute(Tuple &tuple, std::vector<const char *> &agg_columns) {
+RC AggregationExeNode::execute(Tuple &tuple, std::vector<const char *> &agg_columns, std::vector<Tuple> *tuples_,
+                               const std::vector<std::pair<const char *, const char *>>& select_columns,
+                               std::vector<std::pair<const char *, int>> selected_group_info_map) {
   RC rc = RC::SUCCESS;
   //<aggname, attr index in tuple>
   std::unordered_map<const char *, int> map;
   rc = init_index_map(map);
 
-  
+
   std::vector<AggValue> res;
   std::unordered_map<const char *, int> avg_count; //对相关列进行avg的计数操作
   for(int i=0; i < agg_infos_.size(); i++) {
@@ -241,11 +245,16 @@ RC AggregationExeNode::execute(Tuple &tuple, std::vector<const char *> &agg_colu
     if(agg_info.type == AVGS){
       avg_count[agg_column_name] = 0;
     }
-    
+
   }
   //执行聚合操作  对每一个元组为单位进行操作
-  const std::vector<Tuple> &tuples = table_->tuples();
-  for(const Tuple &tuple : tuples) {
+  const std::vector<Tuple> *tuples;
+  if(tuples_ == nullptr){
+     tuples = &table_->tuples();
+  }else{
+    tuples = tuples_;
+  }
+  for(const Tuple &tuple : *tuples) {
     for(int i=0; i<agg_infos_.size(); i++) {
       std::pair<const char *, AggInfo> pair = agg_infos_[i];
       const char *agg_column_name = pair.first;
@@ -266,8 +275,8 @@ RC AggregationExeNode::execute(Tuple &tuple, std::vector<const char *> &agg_colu
           case COUNTS: {
             if(!tuple_value.is_null())
               rc = count(res[i], false);
-            else 
-              rc = count(res[i], true);            
+            else
+              rc = count(res[i], true);
           }
           break;
           case MAXS:
@@ -293,41 +302,55 @@ RC AggregationExeNode::execute(Tuple &tuple, std::vector<const char *> &agg_colu
 
   // 以tuple的形式组织聚合结果
 
-  for(int i=0; i < agg_infos_.size(); i++) {
-    AggValue agg_value = res[i];
-    const char * agg_column_name = agg_infos_[i].first;
-    agg_columns.push_back(agg_column_name);
-    bool is_init = (agg_value.values.int_value != NULL_VALUE);
+//  for(int i=0; i < agg_infos_.size(); i++) {
+  for (auto &it: selected_group_info_map) {
+    int i = it.second;
+    if(strcmp(it.first,"agg_infos") == 0){
+      AggValue agg_value = res[i];
+  //    const char * agg_column_name = agg_infos_[i].first;
+  //    agg_columns.push_back(agg_column_name);
+      bool is_init = (agg_value.values.int_value != NULL_VALUE);
 
-    if(!is_init){
-      //聚合列都是null时，聚合函数的结果为null
-      tuple.add();
+      if(!is_init){
+        //聚合列都是null时，聚合函数的结果为null
+        tuple.add();
+      }
+      else {
+        switch(agg_value.value_idx) {
+          case 1:{ //int
+            tuple.add(agg_value.values.int_value);
+          }
+          break;
+          case 2: { //float
+            tuple.add(agg_value.values.float_value);
+          }
+          break;
+          case 3: { //string
+            tuple.add(agg_value.values.string_value,
+                    strlen(agg_value.values.string_value));
+          }
+          break;
+          case 5: {//dates
+            tuple.add(agg_value.values.date_value);
+          }
+
+          default:
+          break;
+        }
+      }
     }
-    else {
-      switch(agg_value.value_idx) {
-        case 1:{ //int
-          tuple.add(agg_value.values.int_value);
-        }
-        break;
-        case 2: { //float
-          tuple.add(agg_value.values.float_value);
-        }
-        break;
-        case 3: { //string
-          tuple.add(agg_value.values.string_value, 
-                  strlen(agg_value.values.string_value));
-        }
-        break;
-        case 4: {//dates
-          tuple.add(agg_value.values.date_value);
-        }
-
-        default:
-        break;
-      }      
+    else{
+      const char * rel = select_columns[i].first;
+      const char * attr = select_columns[i].second;
+      TupleSchema schema = table_->get_schema();
+      int index = schema.index_of_field(rel,attr);
+      const TupleValue &tuple_value = (*tuples)[0].get(index);
+      std::stringstream ss;
+      tuple_value.to_string(ss);
+      const char* v = ss.str().c_str();
+      tuple.add(v, std::strlen(v));
     }
   }
-  
   return rc;
 }
 

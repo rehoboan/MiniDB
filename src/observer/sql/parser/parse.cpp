@@ -60,7 +60,26 @@ void relation_attr_init(RelAttr *relation_attr, const char *relation_name, const
   relation_attr->attribute_name = strdup(attribute_name);
 }
 
-void relation_attr_with_agg_init(RelAttr *relation_attr, const char *agg_name, 
+void relation_order_init(OrderDescription *order_desc, const char *relation_name, const char *attribute_name, OrderType order_type){
+  if (relation_name != nullptr) {
+    order_desc->relation_name = strdup(relation_name);
+  } else {
+    order_desc->relation_name = nullptr;
+  }
+  order_desc->attribute_name = strdup(attribute_name);
+  order_desc->type = order_type;
+}
+
+void relation_group_init(GroupByDescription *group_desc,const char *relation_name,const char *attribute_name){
+  if (relation_name != nullptr) {
+    group_desc->relation_name = strdup(relation_name);
+  } else {
+    group_desc->relation_name = nullptr;
+  }
+  group_desc->attribute_name = strdup(attribute_name);
+}
+
+void relation_attr_with_agg_init(RelAttr *relation_attr, const char *agg_name,
                                 const char *relation_name, const char *attribute_name) {
   relation_attr_init(relation_attr, relation_name, attribute_name);
   if(agg_name != nullptr)
@@ -269,6 +288,21 @@ void selects_append_condition(Selects *selects, Condition *condition, size_t sel
   subselect.conditions[subselect.condition_num++] = *condition;
 }
 
+void selects_append_orders(Selects *selects, OrderDescription orders[], size_t order_num, size_t select_num){
+  SubSelects &subselect = selects->subselects[select_num];
+  for (size_t i = 0; i < order_num; i++) {
+    subselect.order_des[i] = orders[i];
+  }
+  subselect.order_num = order_num;
+}
+
+void selects_append_groups(Selects *selects, GroupByDescription groups[], size_t group_num, size_t select_num){
+  SubSelects &subselect = selects->subselects[select_num];
+  for (size_t i = 0; i < group_num; i++) {
+    subselect.group_des[i] = groups[i];
+  }
+  subselect.group_num = group_num;
+}
 
 void selects_destroy(Selects *selects) {
   //size_t select_num = selects->select_num;
