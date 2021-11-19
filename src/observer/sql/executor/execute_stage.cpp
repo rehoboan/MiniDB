@@ -624,7 +624,7 @@ RC ExecuteStage::do_select_recur(const char *db, Selects &selects, size_t &idx, 
 
   RC rc = RC::SUCCESS;
   size_t current_idx = idx;
-  assert(idx>0);
+//  assert(idx>0);
   SubSelects &subselect = selects.subselects[idx];
   //先进行查询元数据校验
   rc = check_select_metadata(subselect, db, session_event);
