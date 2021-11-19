@@ -80,7 +80,7 @@ using MapName2Value = std::unordered_map<const char *, TupleSet *, hash_string, 
 //<tupleset, [t1,t2,........]>  连接后的临时表
 using MapValue2Name = std::unordered_map<TupleSet *, std::vector<const char *>>;
 
-void create_select_columns_with_star(const char *db, const Selects &selects, 
+void create_select_columns_with_star(const char *db, const SubSelects &subselect, 
                                     std::vector<std::pair<const char *, const char *>> &select_columns);
 
                         
@@ -88,7 +88,7 @@ const char * create_agg_columns_name(const char *table_name, const char *attr_na
                                     const char *agg_name, bool display_table);
 
 //create and init executor node
-RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, const char *table_name, SelectExeNode &select_node);
+RC create_selection_executor(Trx *trx, const SubSelects &subselect, const char *db, const char *table_name, SelectExeNode &select_node);
 
 RC create_join_executor(Trx *trx, 
                         const TupleSet &left_table, const TupleSet &right_table,
@@ -107,12 +107,14 @@ RC create_aggregation_executor(Trx *trx,
                               AggregationExeNode &agg_node,
                               SessionEvent *session_event);
 
-RC check_select_metadata(const Selects &selects, const char *db, SessionEvent *session_event);
+RC check_select_metadata(const SubSelects &subselect, const char *db, SessionEvent *session_event);
 
 RC check_field(std::unordered_map<const char *, Table *, hash_string, equal_string>tables, const char *relation_name, const char *attr_name, SessionEvent *session_event);
 
+RC check_subselect(const SubSelects &subselect, const char *db, SessionEvent *session_event);
+
 //init join conditions
-void init_join_conditions_between_tables(const Selects &selects, JoinConds &map);
+void init_join_conditions_between_tables(const SubSelects &subselect, JoinConds &map);
 //init map between tablename and filtered tuple sets
 void init_kv_between_name_and_value(std::vector<TupleSet> &tuple_sets, 
                     MapName2Value &name2value, MapValue2Name &value2name);
@@ -308,31 +310,36 @@ void end_trx_if_need(Session *session, Trx *trx, bool all_right) {
 
 // 这里没有对输入的某些信息做合法性校验，比如查询的列名、where条件中的列名等，没有做必要的合法性校验
 // 需要补充上这一部分. 校验部分也可以放在resolve，不过跟execution放一起也没有关系
-RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_event) {
-
-  RC rc = RC::SUCCESS;
-  Session *session = session_event->get_client()->session;
-  Trx *trx = session->current_trx();
-  const Selects &selects = sql->sstr.selection;
-  //先进行原数据校验
-  rc = check_select_metadata(selects, db, session_event);
-  if(rc != RC::SUCCESS) {
-    LOG_ERROR("select metadata check error");
-    end_trx_if_need(session, trx, false);
-    return rc;
+RC check_subselect(const SubSelects &subselect, const char *db, SessionEvent *session_event) {
+  if(subselect.relation_num > 1) {
+    LOG_WARN("Subselect support single-table selection only");
+    char err[256];
+    sprintf(err, "FAILURE\n");
+    session_event->set_response(err);
+    return RC::MISUSE;
   }
+  
+}
+
+RC ExecuteStage::do_sub_select(bool is_sub, const char *db, const SubSelects &subselect, 
+              Tuple &res_tuple,
+              SessionEvent *session_event) {
   // 把所有的表和只跟这张表关联的condition都拿出来，生成最底层的select 执行节点
+  Session* session = session_event->get_client()->session;
+  Trx *trx = session->current_trx();
+  RC rc = RC::SUCCESS;
   std::vector<SelectExeNode *> select_nodes;
-  for (size_t i = 0; i < selects.relation_num; i++) {
-    const char *table_name = selects.relations[i];
+
+  for (size_t i = 0; i < subselect.relation_num; i++) {
+    const char *table_name = subselect.relations[i];
     SelectExeNode *select_node = new SelectExeNode;
-    rc = create_selection_executor(trx, selects, db, table_name, *select_node);
+    rc = create_selection_executor(trx, subselect, db, table_name, *select_node);
     if (rc != RC::SUCCESS) {
       delete select_node;
       for (SelectExeNode *& tmp_node: select_nodes) {
         delete tmp_node;
       }
-      end_trx_if_need(session, trx, false);
+      //end_trx_if_need(session, trx, false);
       return rc;
     }
     select_nodes.push_back(select_node);
@@ -340,10 +347,8 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
 
   if (select_nodes.empty()) {
     LOG_ERROR("No table given");
-    end_trx_if_need(session, trx, false);
     return RC::SQL_SYNTAX;
   }
-
   std::vector<TupleSet> tuple_sets;
   for (SelectExeNode *&node : select_nodes) {
     TupleSet tuple_set;
@@ -352,7 +357,7 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
       for (SelectExeNode *& tmp_node : select_nodes) {
         delete tmp_node;
       }
-      end_trx_if_need(session, trx, false);
+      //end_trx_if_need(session, trx, false);
       return rc;
     } else {
       tuple_sets.push_back(std::move(tuple_set));
@@ -361,12 +366,13 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
   for (SelectExeNode *& tmp_node: select_nodes) {
     delete tmp_node;
   }
+
   TupleSet res_table;
   if (tuple_sets.size() > 1) {
     // 本次查询了多张表，需要做join操作
 
     JoinConds join_conditions;
-    init_join_conditions_between_tables(selects, join_conditions);
+    init_join_conditions_between_tables(subselect, join_conditions);
 
 
     MapName2Value name2value;
@@ -391,11 +397,6 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
   if(rc != RC::SUCCESS) {
     LOG_ERROR("Fail to execute join operation. ret=%d:%s", rc, strrc(rc));
   }
-
-
-  // for (SelectExeNode *& tmp_node: select_nodes) {
-  //   delete tmp_node;
-  // }
   //<tablename, column name>
   std::vector<std::pair<const char *, const char *>> select_columns;
   //<aggregation column, agginfo>
@@ -403,23 +404,23 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
 
   bool is_multi_table = false;
   //处理带星号的查询,不支持多个属性和*同时出现
-  if(selects.attr_num == 1 && strcmp(selects.attributes[0].attribute_name, "*") == 0 &&
-      selects.attributes[0].agg_name == nullptr) {
-    is_multi_table = !(selects.relation_num==1);
-    create_select_columns_with_star(db, selects, select_columns);
+  if(subselect.attr_num == 1 && strcmp(subselect.attributes[0].attribute_name, "*") == 0 &&
+      subselect.attributes[0].agg_name == nullptr) {
+    is_multi_table = !(subselect.relation_num==1);
+    create_select_columns_with_star(db, subselect, select_columns);
   } else {
-    for(int i = selects.attr_num - 1; i >= 0; i--) {
-      const char *attr_name = selects.attributes[i].attribute_name;
-      const char *relation_name = selects.attributes[i].relation_name;
-      const char *agg_name = selects.attributes[i].agg_name;
+    for(int i = subselect.attr_num - 1; i >= 0; i--) {
+      const char *attr_name = subselect.attributes[i].attribute_name;
+      const char *relation_name = subselect.attributes[i].relation_name;
+      const char *agg_name = subselect.attributes[i].agg_name;
       //如果显示查询多张表但是选择的属性列没有表名前缀，说明元数据校验有问题。
-      if(relation_name == nullptr && selects.relation_num!=1 && agg_name==nullptr) {
+      if(relation_name == nullptr && subselect.relation_num!=1 && agg_name==nullptr) {
           LOG_ERROR("No tablename prefix when operating multi table selection");
           continue;
-      } else if(relation_name == nullptr && selects.relation_num==1) {
-        relation_name = selects.relations[0];
+      } else if(relation_name == nullptr && subselect.relation_num==1) {
+        relation_name = subselect.relations[0];
         is_multi_table = false;
-      } else if(relation_name != nullptr && selects.relation_num > 1) {
+      } else if(relation_name != nullptr && subselect.relation_num > 1) {
         is_multi_table = true;
       }
   
@@ -427,7 +428,7 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
       if(agg_name == nullptr)
         select_columns.emplace_back(relation_name, attr_name); 
       else {//如果是聚集函数列，构造聚集列名（判断是否是单表查询），初始化aggregation信息，加入到agg infos中
-        bool display_table = !(selects.relation_num==1);
+        bool display_table = !(subselect.relation_num==1);
         const char *agg_column_name = create_agg_columns_name(relation_name, attr_name, agg_name, display_table);
         AggInfo agg_info;
         init_aggregation(relation_name, attr_name, agg_name, agg_info);        
@@ -447,22 +448,65 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
     return rc;
   } else if(agg_infos.size()>0) {
     is_agg = true;
+    if(is_sub && agg_infos.size()>1) {
+      //子表只支持单属性，单聚集查询
+      LOG_WARN("Subselect support single aggregation function only");
+      char err[256];
+      sprintf(err, "FAILURE\n");
+      session_event->set_response(err);
+      return RC::MISUSE;
+    }
   }
   if(!is_agg) {
+    if(is_sub) {
+      //todo 修改为按值列表返回(select_columns 中的列)
+      //res_table 为tupleset 类型
+      if(select_columns.size()>1) {
+        LOG_WARN("Subselect support single-table selection only");
+        char err[256];
+        sprintf(err, "FAILURE\n");
+        session_event->set_response(err);
+        return RC::MISUSE;
+      }
+      const char * select_relation_name = select_columns.front().first;
+      const char * select_attr_name = select_columns.front().second;
+      int idx = res_table.get_schema().index_of_field(select_relation_name, select_attr_name);
+      if(idx == -1) {
+        LOG_WARN("The column of required columns is non-exist in the table");
+        return RC::SCHEMA_FIELD_MISSING;
+      }
+      const std::vector<Tuple> &tuples = res_table.tuples();
+      for(const Tuple &t : tuples) {
+        const std::vector<std::shared_ptr<TupleValue>> &values = t.values();
+        res_tuple.add(values[idx]);
+      }
+      return rc;
+    }
     res_table.print(ss, select_columns, is_multi_table);
   } else {
     AggregationExeNode agg_node;
     rc = create_aggregation_executor(trx, res_table, agg_infos, agg_node, session_event);
     //agg_node.init(trx, &res_table, agg_infos);
     if(rc != RC::SUCCESS) {
-      end_trx_if_need(session, trx, false);
+      //end_trx_if_need(session, trx, false);
       return rc;
     }
     Tuple agg_res;
     std::vector<const char *> agg_columns;
     rc = agg_node.execute(agg_res, agg_columns);
     if(rc != RC::SUCCESS) {
-      end_trx_if_need(session, trx, false);
+      //end_trx_if_need(session, trx, false);
+      return rc;
+    }
+    if(is_sub) {
+      if(agg_res.size()>1) {
+        LOG_WARN("Subselect support single aggregation function only");
+        char err[256];
+        sprintf(err, "FAILURE\n");
+        session_event->set_response(err);
+        return RC::MISUSE;
+      }
+      res_tuple.add(agg_res.get_pointer(0));
       return rc;
     }
     //print aggregation selection columns
@@ -480,12 +524,154 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
     values.back()->to_string(ss);
     ss<<std::endl;
   }
-
-  
   session_event->set_response(ss.str());
-  end_trx_if_need(session, trx, true);
+  //end_trx_if_need(session, trx, true);
   return rc;
 }
+
+int get_cond_attr_type(const char *db, const RelAttr &relattr, const char *table_name) {
+  const char *relation_name = relattr.relation_name;
+  const char *attr_name = relattr.attribute_name;
+  if(relation_name==nullptr)
+    relation_name = table_name;
+  Table *table = DefaultHandler::get_default().find_table(db, relation_name);
+  FieldMeta *field_meta = table->table_meta().field(attr_name);
+  return field_meta->type();
+}
+
+RC ExecuteStage::do_select_recur(const char *db, Selects &selects, size_t &idx, Tuple &res_tuple,
+                              Trx *trx, SessionEvent *session_event) {
+
+  RC rc = RC::SUCCESS;
+  assert(idx>=0);
+  SubSelects &subselect = selects.subselects[idx];
+  //先进行查询元数据校验
+  rc = check_select_metadata(subselect, db, session_event);
+  if(rc != RC::SUCCESS) {
+    LOG_ERROR("select metadata check error");
+    return rc;
+  }
+
+  for(int i=subselect.condition_num-1; i>=0; i--) {
+    Condition &condition = subselect.conditions[i];
+    if(condition.right_value.type == SUBSELECT) {
+      size_t sub_idx = idx - 1;
+      rc = do_select_recur(db, selects, sub_idx, res_tuple, trx, session_event);
+      if(rc != RC::SUCCESS){
+        LOG_ERROR("sub select query error");
+        return rc;
+      }
+      //利用下层传来的结果修改condition的rightvalue
+      int type = res_tuple.get(0).get_type();
+      size_t size = res_tuple.size();
+      if(size == 0) {
+          //nothing todo
+          //如果返回的size为0，则说明下层查询为空，继续循环，但是condition filter过滤的时候要进行判断
+          //判断该condition为无效。（判断方法为condition的right value的type为SUBSELECT）
+          continue;
+      }
+      if(size > 1 && !(condition.comp == OP_IN || condition.comp == OP_NOT_IN)) {
+        LOG_ERROR("Only IN operation support set data");
+        char err[256];
+        sprintf(err, "FAILURE");
+        session_event->set_response(err);
+        return RC::MISUSE;
+      }
+      //现在condition 的right value的type还是SUBSELECT，修改value的type和num
+      condition.right_value.type = type;
+      condition.right_value.num = size;
+      switch(type) {
+        case INTS: {
+          condition.right_value.data = malloc(sizeof(int) * size);
+          int *head = (int *)condition.right_value.data;
+          for(int i=0; i < size; i++) {
+            int value_int = *(int *)res_tuple.get(i).get_value();
+            head[i] = value_int;
+          }
+        }
+          break;
+        case FLOATS: {
+          condition.right_value.data = malloc(sizeof(float) * size);
+          float *head = (float *)condition.right_value.data;
+          for(int i=0; i < size; i++) {
+            float value_float = *(float *)res_tuple.get(i).get_value();
+            head[i] = value_float;
+          }
+        }
+          break;
+        case CHARS: {
+          //如果是多个值，搞一个链表，value里的data作为头指针
+          MultiValueLinkNode<const char *> *p = new MultiValueLinkNode<const char *>();
+          p->value = ((std::string *)res_tuple.get(0).get_value())->c_str();
+          MultiValueLinkNode<const char *> *pre = nullptr;
+          condition.right_value.data = (void *)p;
+          for(int i=1; i < size; i++) {
+            pre = p;
+            p = new MultiValueLinkNode<const char *>();
+            p->value = ((std::string *)res_tuple.get(i).get_value())->c_str();
+            pre->next_value = p;
+          }
+        }
+          break;
+        case DATES: {
+          //如果是多个值，搞一个链表，value里的data作为头指针
+          MultiValueLinkNode<time_t> *p = new MultiValueLinkNode<time_t>();
+          p->value = ((const DateValue &)res_tuple.get(0)).get_value_time_t();
+          MultiValueLinkNode<time_t> *pre = nullptr;
+          condition.right_value.data = (void *)p;
+          for(int i=1; i < size; i++) {
+            pre = p;
+            p = new MultiValueLinkNode<time_t>();
+            p->value = ((const DateValue &)res_tuple.get(i)).get_value_time_t();
+            pre->next_value = p;
+          }
+        }
+          break;
+        default:
+          break;
+      }
+      idx--;
+    }
+  }
+
+  //对子查询单独校验
+  std::cout<<"output select idx   "<<idx<<std::endl;
+  bool is_sub = (idx!= selects.select_num);
+  if(is_sub) {
+    //子查询
+    rc = check_subselect(subselect, db, session_event);
+    if(rc != RC::SUCCESS) {
+      LOG_ERROR("subselect query check error");
+      return rc;
+    }
+  }
+  //执行该subselect，将结果送给上一层
+  rc = do_sub_select(is_sub, db, subselect, res_tuple, session_event);
+  if(rc != RC::SUCCESS) {
+    LOG_ERROR("select query error");
+    return rc;
+  }
+  return RC::SUCCESS;
+
+}
+
+RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_event) {
+  RC rc = RC::SUCCESS;
+  Session *session = session_event->get_client()->session;
+  Trx *trx = session->current_trx();
+  Selects &selects = sql->sstr.selection;
+  size_t idx = selects.select_num;
+  Tuple res_tuple;
+  rc = do_select_recur(db, selects, idx, res_tuple, trx, session_event);
+  if(rc != RC::SUCCESS) {
+    LOG_ERROR("select query error");
+    end_trx_if_need(session, trx, false);
+    return rc;
+  }
+  return RC::SUCCESS;
+}
+
+
 
 
 //join operation between two relation
@@ -574,12 +760,12 @@ RC cartesian_product(Trx *trx, const MapValue2Name &value2name, TupleSet &res_ta
 
 }
 
-bool match_table(const Selects &selects, const char *table_name_in_condition, const char *table_name_to_match) {
+bool match_table(const SubSelects &subselect, const char *table_name_in_condition, const char *table_name_to_match) {
   if (table_name_in_condition != nullptr) {
     return 0 == strcmp(table_name_in_condition, table_name_to_match);
   }
 
-  return selects.relation_num == 1;
+  return subselect.relation_num == 1;
 }
 
 static RC schema_add_field(Table *table, const char *field_name, TupleSchema &schema) {
@@ -593,10 +779,10 @@ static RC schema_add_field(Table *table, const char *field_name, TupleSchema &sc
   return RC::SUCCESS;
 }
 
-void create_select_columns_with_star(const char *db, const Selects &selects, 
+void create_select_columns_with_star(const char *db, const SubSelects &subselect, 
                                     std::vector<std::pair<const char *, const char *>> &select_columns) {
-  for(int i=selects.relation_num-1; i>=0; i--) {
-    const char *table_name = selects.relations[i];
+  for(int i=subselect.relation_num-1; i>=0; i--) {
+    const char *table_name = subselect.relations[i];
     Table * table = DefaultHandler::get_default().find_table(db, table_name);
     TableMeta &table_meta = table->table_meta();
     int field_num = table_meta.field_num();
@@ -609,9 +795,7 @@ void create_select_columns_with_star(const char *db, const Selects &selects,
   }
 }
 
-//char* build_agg_column_name(AggTypeName agg_type, TableName table_name, ColumnName attr_name, bool display_table){
 
-//}
 
 
 const char* create_agg_columns_name(const char *table_name, const char *attr_name, 
@@ -641,7 +825,7 @@ const char* create_agg_columns_name(const char *table_name, const char *attr_nam
 
 
 // 把所有的表和只跟这张表关联的condition都拿出来，生成最底层的select 执行节点
-RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, const char *table_name, SelectExeNode &select_node) {
+RC create_selection_executor(Trx *trx, const SubSelects &subselect, const char *db, const char *table_name, SelectExeNode &select_node) {
   // 列出跟这张表关联的Attr
   TupleSchema schema;
   Table * table = DefaultHandler::get_default().find_table(db, table_name);
@@ -670,13 +854,16 @@ RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, c
 
   // 找出仅与此表相关的过滤条件, 或者都是值的过滤条件
   std::vector<DefaultConditionFilter *> condition_filters;
-  for (size_t i = 0; i < selects.condition_num; i++) {
-    const Condition &condition = selects.conditions[i];
+  for (size_t i = 0; i < subselect.condition_num; i++) {
+    const Condition &condition = subselect.conditions[i];
+    if(condition.right_is_attr==0 && condition.right_value.type==SUBSELECT) {
+      continue; //下层子查询返回为空，无效 condition
+    }
     if ((condition.left_is_attr == 0 && condition.right_is_attr == 0) || // 两边都是值
-        (condition.left_is_attr == 1 && condition.right_is_attr == 0 && match_table(selects, condition.left_attr.relation_name, table_name)) ||  // 左边是属性右边是值
-        (condition.left_is_attr == 0 && condition.right_is_attr == 1 && match_table(selects, condition.right_attr.relation_name, table_name)) ||  // 左边是值，右边是属性名
+        (condition.left_is_attr == 1 && condition.right_is_attr == 0 && match_table(subselect, condition.left_attr.relation_name, table_name)) ||  // 左边是属性右边是值
+        (condition.left_is_attr == 0 && condition.right_is_attr == 1 && match_table(subselect, condition.right_attr.relation_name, table_name)) ||  // 左边是值，右边是属性名
         (condition.left_is_attr == 1 && condition.right_is_attr == 1 &&
-            match_table(selects, condition.left_attr.relation_name, table_name) && match_table(selects, condition.right_attr.relation_name, table_name)) // 左右都是属性名，并且表名都符合
+            match_table(subselect, condition.left_attr.relation_name, table_name) && match_table(subselect, condition.right_attr.relation_name, table_name)) // 左右都是属性名，并且表名都符合
         ) {
       DefaultConditionFilter *condition_filter = new DefaultConditionFilter();
       RC rc = condition_filter->init(*table, condition);
@@ -747,20 +934,20 @@ RC create_aggregation_executor(Trx *trx,
 }
 
 
-RC check_select_metadata(const Selects &selects, const char *db, SessionEvent *session_event) {  
-  if(selects.relation_num <= 0){
+RC check_select_metadata(const SubSelects &subselect, const char *db, SessionEvent *session_event) {  
+  if(subselect.relation_num <= 0){
     LOG_ERROR("No table given");
     return RC::SQL_SYNTAX;
   }
-  if(selects.attr_num <= 0){
+  if(subselect.attr_num <= 0){
     LOG_ERROR("No column given");
     return RC::SQL_SYNTAX;
   }
 
   //检验表是否存在
   std::unordered_map<const char *, Table *, hash_string, equal_string> tables;
-  for(int i=0; i < selects.relation_num; i++) {
-    const char *table_name = selects.relations[i];
+  for(int i=0; i < subselect.relation_num; i++) {
+    const char *table_name = subselect.relations[i];
     Table *table = DefaultHandler::get_default().find_table(db, table_name);
     if(table == nullptr) {
       LOG_WARN("No such table [%s] in db [%s]", table_name, db);
@@ -774,8 +961,8 @@ RC check_select_metadata(const Selects &selects, const char *db, SessionEvent *s
 
   //检验查询列
   RC rc = RC::SUCCESS;
-  for(int i=0; i < selects.attr_num; i++) {
-    const RelAttr &attr = selects.attributes[i];
+  for(int i=0; i < subselect.attr_num; i++) {
+    const RelAttr &attr = subselect.attributes[i];
     const char *relation_name = attr.relation_name;
     const char *attr_name = attr.attribute_name;
     const char *agg_name = attr.agg_name;
@@ -783,7 +970,7 @@ RC check_select_metadata(const Selects &selects, const char *db, SessionEvent *s
     if(strcmp(attr_name, "*")==0) {
       if(agg_name != nullptr){
         continue;
-      } else  if(selects.attr_num > 1) {
+      } else  if(subselect.attr_num > 1) {
         //不允许*和其他选择列同时出现
         return RC::MISUSE;
       } else {
@@ -806,8 +993,8 @@ RC check_select_metadata(const Selects &selects, const char *db, SessionEvent *s
     }
   }
   //检查condition
-  for(int i = 0; i < selects.condition_num; i++){
-    const Condition &condition = selects.conditions[i];
+  for(int i = 0; i < subselect.condition_num; i++){
+    const Condition &condition = subselect.conditions[i];
     if(condition.left_is_attr) {
       const char *relation_name = condition.left_attr.relation_name;
       const char *attr_name = condition.left_attr.attribute_name;
@@ -865,11 +1052,11 @@ RC check_field(std::unordered_map<const char *, Table *, hash_string, equal_stri
   return RC::SUCCESS;
 }
 
-void init_join_conditions_between_tables(const Selects &selects, JoinConds &map) {
-  for(int i=0; i<selects.condition_num; i++) {
-    const Condition &condition = selects.conditions[i];
-    const char *left_table_name = selects.conditions[i].left_attr.relation_name;
-    const char *right_table_name = selects.conditions[i].right_attr.relation_name;
+void init_join_conditions_between_tables(const SubSelects &subselect, JoinConds &map) {
+  for(int i=0; i<subselect.condition_num; i++) {
+    const Condition &condition = subselect.conditions[i];
+    const char *left_table_name = subselect.conditions[i].left_attr.relation_name;
+    const char *right_table_name = subselect.conditions[i].right_attr.relation_name;
     //no table name or non-attr  won't be added to the join conditions
     if(left_table_name == nullptr || right_table_name == nullptr)
       continue;

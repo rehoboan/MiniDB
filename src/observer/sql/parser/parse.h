@@ -17,6 +17,14 @@ See the Mulan PSL v2 for more details. */
 
 #include "rc.h"
 #include "sql/parser/parse_defs.h"
+template<class T>
+struct MultiValueLinkNode {
+  T value;
+
+  MultiValueLinkNode<T> *next_value;
+
+  MultiValueLinkNode(): next_value(nullptr){}
+};
 
 RC parse(const char *st, Query *sqln);
 

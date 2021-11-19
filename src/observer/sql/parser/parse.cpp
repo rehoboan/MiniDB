@@ -22,6 +22,14 @@ RC parse(char *st, Query *sqln);
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
+
+
+void debug_subselect() {
+  //std::cout<<"here comes in subselect parse tree"<<std::endl;
+  printf("here comes in subselect parse tree");
+}
+
+
 void relation_attr_init(RelAttr *relation_attr, const char *relation_name, const char *attribute_name) {
   relation_attr->agg_name = nullptr;
   if (relation_name != nullptr) {
@@ -49,21 +57,25 @@ void relation_attr_destroy(RelAttr *relation_attr) {
 void value_init_null(Value *value){
     value->type = UNDEFINED | NULL_VALUE;
     value->data = malloc(sizeof(int));
+    value->num = 0;
 }
 
 void value_init_integer(Value *value, int v) {
   value->type = INTS;
   value->data = malloc(sizeof(v));
   memcpy(value->data, &v, sizeof(v));
+  value->num = 1;
 }
 void value_init_float(Value *value, float v) {
   value->type = FLOATS;
   value->data = malloc(sizeof(v));
   memcpy(value->data, &v, sizeof(v));
+  value->num = 1;
 }
 void value_init_string(Value *value, const char *v) {
   value->type = CHARS;
   value->data = strdup(v);
+  value->num = 1;
 }
 
 void value_init_date(Value *value, const char *v) {
@@ -106,13 +118,50 @@ void value_init_date(Value *value, const char *v) {
         }
         record[i] = '\0';
     }
+    value->num= 1;
+}
+
+void value_init_subselect(Value *value) {
+  value->type = SUBSELECT;
+  value->data = nullptr;
+  value->num = 0;
 }
 
 void value_destroy(Value *value) {
-  value->type = UNDEFINED;
-  free(value->data);
+  switch (value->type){
+    case INTS:
+      free(value->data);
+      break;
+    case FLOATS:
+      free(value->data);
+      break;
+    case DATES: {
+      MultiValueLinkNode<time_t> *p = (MultiValueLinkNode<time_t> *)(value->data);
+      while(p) {
+        MultiValueLinkNode<time_t> *pn = p->next_value;
+        delete(p);
+        p = pn;
+      }
+    }
+      break;
+    case CHARS: {
+      MultiValueLinkNode<const char *> *p = (MultiValueLinkNode<const char *> *)(value->data);
+      while(p) {
+        MultiValueLinkNode<const char *> *pn = p->next_value;
+        delete(p);
+        p = pn;
+      }
+    }
+      break;
+    default:
+      break;
+  }
+
   value->data = nullptr;
+  value->type = UNDEFINED;
+  value->num = 0;
 }
+
 
 void condition_init(Condition *condition, CompOp comp, 
                     int left_is_attr, RelAttr *left_attr, Value *left_value,
@@ -172,37 +221,59 @@ void attr_info_destroy(AttrInfo *attr_info) {
 }
 
 void selects_init(Selects *selects, ...);
-void selects_append_attribute(Selects *selects, RelAttr *rel_attr) {
-  selects->attributes[selects->attr_num++] = *rel_attr;
+void selects_append_attribute(Selects *selects, RelAttr *rel_attr, size_t select_num) {
+  selects->select_num = select_num;
+  SubSelects &subselect = selects->subselects[select_num];
+  subselect.attributes[subselect.attr_num++] = *rel_attr;
 }
-void selects_append_relation(Selects *selects, const char *relation_name) {
-  selects->relations[selects->relation_num++] = strdup(relation_name);
+void selects_append_relation(Selects *selects, const char *relation_name, size_t select_num) {
+  selects->select_num = select_num;
+  std::cout<<"select_num   "<<select_num<<std::endl;
+  std::cout<<"relationname    "<<relation_name<<std::endl;
+  SubSelects &subselect = selects->subselects[select_num];
+    std::cout<<"relationnum     "<<subselect.relation_num<<std::endl;
+  subselect.relations[subselect.relation_num++] = strdup(relation_name);
 }
 
-void selects_append_conditions(Selects *selects, Condition conditions[], size_t condition_num) {
-  assert(condition_num <= sizeof(selects->conditions)/sizeof(selects->conditions[0]));
-  for (size_t i = 0; i < condition_num; i++) {
-    selects->conditions[i] = conditions[i];
+// void selects_append_conditions(Selects *selects, Condition conditions[], size_t condition_num, size_t select_num) {
+//   SubSelects &subselect = selects->subselects[selects->select_num];
+//   assert(condition_num <= sizeof(subselect.conditions)/sizeof(subselect.conditions[0]));
+//   for (size_t i = 0; i < condition_num; i++) {
+//     subselect.conditions[i] = conditions[i];
+//   }
+//   subselect.condition_num = condition_num;
+// }
+
+void selects_append_conditions(Selects *selects, Condition conditions[], size_t condition_num, size_t sub_select_cond_idx) {
+  SubSelects &subselect = selects->subselects[selects->select_num];
+  assert(condition_num <= sizeof(subselect.conditions)/sizeof(subselect.conditions[0]));
+  assert(sub_select_cond_idx>=0 && sub_select_cond_idx <= condition_num);
+  for(size_t i = sub_select_cond_idx; i < condition_num; i++) {
+    subselect.conditions[i - sub_select_cond_idx] = conditions[i];
   }
-  selects->condition_num = condition_num;
+  subselect.condition_num = condition_num - sub_select_cond_idx;
 }
 
 void selects_destroy(Selects *selects) {
-  for (size_t i = 0; i < selects->attr_num; i++) {
-    relation_attr_destroy(&selects->attributes[i]);
-  }
-  selects->attr_num = 0;
+  //size_t select_num = selects->select_num;
+  for(auto &subselect : selects->subselects) {
+    for(size_t i = 0; i < subselect.attr_num; i++) {
+      relation_attr_destroy(&subselect.attributes[i]);
+    }
+    subselect.attr_num = 0;
 
-  for (size_t i = 0; i < selects->relation_num; i++) {
-    free(selects->relations[i]);
-    selects->relations[i] = NULL;
-  }
-  selects->relation_num = 0;
+    for(size_t i = 0; i < subselect.relation_num; i++) {
+      free(subselect.relations[i]);
+      subselect.relations[i] = NULL;
+    }
+    subselect.relation_num = 0;
 
-  for (size_t i = 0; i < selects->condition_num; i++) {
-    condition_destroy(&selects->conditions[i]);
+    for(size_t i = 0; i < subselect.condition_num; i++) {
+      condition_destroy(&subselect.conditions[i]);
+    }
+    subselect.condition_num = 0;
   }
-  selects->condition_num = 0;
+
 }
 
 void inserts_init(Inserts *inserts, const char *relation_name, Value values[], size_t value_num, const int row_end[], size_t row_num) {

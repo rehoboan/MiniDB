@@ -349,7 +349,6 @@ RC AggregationExeNode::init_index_map(std::unordered_map<const char *, int> &map
   }
   return RC::SUCCESS; 
 }
-//todo 考虑date
 RC AggregationExeNode::max(const TupleValue &value, AggValue &res) {
   bool is_init = (res.values.int_value != NULL_VALUE);
   int type = value.get_type();

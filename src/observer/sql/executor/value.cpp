@@ -35,6 +35,25 @@ void modify_return_value(int type, ReturnValue &ret, const char *data){
   }
 }
 
+std::string time_t_to_str(time_t time){
+    tm *tm_ = localtime(&time);
+    int year, month, day;
+    year = tm_->tm_year + 1900;
+    month = tm_->tm_mon + 1;
+    day = tm_->tm_mday;
+    char yearStr[5], monthStr[3], dayStr[3];
+    sprintf(yearStr, "%d", year);
+    sprintf(monthStr, "%d", month);
+    sprintf(dayStr, "%d", day);
+
+    char c[11];
+    sprintf(c, "%s-%s-%s", yearStr, monthStr, dayStr);
+
+    return {c};
+
+}
+
+
 const ReturnValue switch_data_type(int source_type, int target_type, const char *data){
   ReturnValue res;
   modify_return_value(source_type, res, data);
@@ -95,6 +114,7 @@ const ReturnValue switch_data_type(int source_type, int target_type, const char 
 
 int compare_data(int left_type, const char *left_data, int right_type, const char *right_data){
   int res = 0;
+
   if (left_type == CHARS && right_type == CHARS){
     res = strcmp(left_data, right_data);
   }
@@ -128,10 +148,67 @@ int compare_data(int left_type, const char *left_data, int right_type, const cha
     res = left - right;
   }
   else{
-    // TODO
+    // TODO 增加左为int 右为float 或左为float 右为int的比较
+  }
+
+
+  return res;
+}
+
+
+int in_op(int left_type, const char *left_data, int right_type, void *right_data_head, size_t right_data_num) {
+  int res = 0;
+  switch (left_type) {
+    case INTS: {
+      int left = *(int*)left_data;
+      int *rights = (int*)right_data_head;
+      for(int i=0; i<right_data_num; i++){
+        if(left == rights[i]) {
+          return 1;
+        }
+      }
+      return res;
+    }
+    break;
+    case FLOATS: {
+      float left = switch_data_type(left_type, FLOATS, left_data).value_f;
+      float* rights = (float*)right_data_head;
+      for(int i=0; i<right_data_num; i++){
+        float diff = left - rights[i];
+        if(abs(diff) <= 0.000001) {
+          res = 1;
+          break;
+        }
+      }
+      return res;
+    }
+    case CHARS: {
+      MultiValueLinkNode<const char *> *right = (MultiValueLinkNode<const char *> *)(right_data_head);
+      while(right){
+        if(!strcmp(left_data, right->value)){
+          return 1;
+        }
+        right = right->next_value;
+      }
+      return res;
+    }
+    case DATES: {
+      MultiValueLinkNode<time_t> *right = (MultiValueLinkNode<time_t> *)(right_data_head);
+      while(right){
+        const char *right_data = time_t_to_str(right->value).c_str();
+        if(!strcmp(left_data, right_data)){
+          return 1;
+        }
+        right = right->next_value;
+      }
+      return res;
+    }
+    default:
+    break;
   }
   return res;
 }
+
 
 
 

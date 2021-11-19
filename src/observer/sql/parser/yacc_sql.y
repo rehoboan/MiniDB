@@ -16,6 +16,8 @@ typedef struct ParserContext {
   size_t condition_length;
   size_t from_length;
 
+  size_t sub_select_cond_idx;
+
   size_t value_length;
   Value values[MAX_VALUE_NUM];
   size_t row_num;
@@ -52,6 +54,7 @@ void yyerror(yyscan_t scanner, const char *str)
   context->from_length = 0;
   context->select_length = 0;
   context->value_length = 0;
+  context->sub_select_cond_idx = 0;
   context->ssql->sstr.insertion.value_num = 0;
   printf("parse sql failed. error=%s", str);
 }
@@ -130,6 +133,7 @@ ParserContext *get_context(yyscan_t scanner)
         LE
         GE
         NE
+		IN
 
 
 
@@ -416,9 +420,11 @@ select:				/*  select 语句的语法解析树*/
     SELECT select_attr FROM ID rel_list where SEMICOLON
 		{
 			// CONTEXT->ssql->sstr.selection.relations[CONTEXT->from_length++]=$4;
-			selects_append_relation(&CONTEXT->ssql->sstr.selection, $4);
+			selects_append_relation(&CONTEXT->ssql->sstr.selection, $4, CONTEXT->select_length);
 
-			selects_append_conditions(&CONTEXT->ssql->sstr.selection, CONTEXT->conditions, CONTEXT->condition_length);
+			selects_append_conditions(&CONTEXT->ssql->sstr.selection, CONTEXT->conditions, CONTEXT->condition_length, CONTEXT->sub_select_cond_idx);
+
+			CONTEXT->select_length++;
 
 			CONTEXT->ssql->flag=SCF_SELECT;//"select";
 			// CONTEXT->ssql->sstr.selection.attr_num = CONTEXT->select_length;
@@ -428,11 +434,12 @@ select:				/*  select 语句的语法解析树*/
 			CONTEXT->from_length=0;
 			CONTEXT->select_length=0;
 			CONTEXT->value_length = 0;
+			CONTEXT->sub_select_cond_idx = 0;
 	}
 	| SELECT select_attr FROM ID join_list where SEMICOLON
 	{
-		selects_append_relation(&CONTEXT->ssql->sstr.selection, $4);
-		selects_append_conditions(&CONTEXT->ssql->sstr.selection, CONTEXT->conditions, CONTEXT->condition_length);
+		selects_append_relation(&CONTEXT->ssql->sstr.selection, $4, CONTEXT->select_length);
+		selects_append_conditions(&CONTEXT->ssql->sstr.selection, CONTEXT->conditions, CONTEXT->condition_length, CONTEXT->sub_select_cond_idx);
 
 		CONTEXT->ssql->flag = SCF_SELECT;
 
@@ -443,69 +450,82 @@ select:				/*  select 语句的语法解析树*/
 		CONTEXT->value_length = 0;
 	}
 	;
+subselect:
+	SELECT select_attr FROM ID rel_list where SEMICOLON
+	{
+		debug_subselect();
+		
+		selects_append_relation(&CONTEXT->ssql->sstr.selection, $4, CONTEXT->select_length);
+		
+		selects_append_conditions(&CONTEXT->ssql->sstr.selection, CONTEXT->conditions, CONTEXT->condition_length, CONTEXT->sub_select_cond_idx);
 
-
+		CONTEXT->select_length++;
+		
+		CONTEXT->sub_select_cond_idx = CONTEXT->condition_length;
+		
+	}
+	;
 select_attr:
     STAR {
 			RelAttr attr;
 			relation_attr_init(&attr, NULL, "*");
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr, CONTEXT->select_length);
 		}
     | ID attr_list {
 			RelAttr attr;
 			relation_attr_init(&attr, NULL, $1);
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr, CONTEXT->select_length);
 		}
   	| ID DOT ID attr_list {
 			RelAttr attr;
 			relation_attr_init(&attr, $1, $3);
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr, CONTEXT->select_length);
 		}
 	
 	| COUNT LBRACE STAR RBRACE attr_list {
 			RelAttr attr;
 			relation_attr_with_agg_init(&attr, "COUNT", NULL, "*");
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr, CONTEXT->select_length);
 		}
 	| COUNT LBRACE ID RBRACE attr_list {
 			RelAttr attr;
 			relation_attr_with_agg_init(&attr, "COUNT", NULL, $3);
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr, CONTEXT->select_length);
 		}
 	| COUNT LBRACE ID DOT ID RBRACE attr_list {
 			RelAttr attr;
 			relation_attr_with_agg_init(&attr, "COUNT", $3, $5);
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr, CONTEXT->select_length);
 		}
 	| MAX LBRACE ID RBRACE attr_list {
 			RelAttr attr;
 			relation_attr_with_agg_init(&attr, "MAX", NULL, $3);
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr, CONTEXT->select_length);
 		}	
 	| MAX LBRACE ID DOT ID RBRACE attr_list {
 			RelAttr attr;
 			relation_attr_with_agg_init(&attr, "MAX", $3, $5);
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr, CONTEXT->select_length);
 		}
 	| MIN LBRACE ID RBRACE attr_list {
 			RelAttr attr;
 			relation_attr_with_agg_init(&attr, "MIN", NULL, $3);
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr, CONTEXT->select_length);
 		}
 	| MIN LBRACE ID DOT ID RBRACE attr_list {
 			RelAttr attr;
 			relation_attr_with_agg_init(&attr, "MIN", $3, $5);
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr, CONTEXT->select_length);
 		}
 	| AVG LBRACE ID RBRACE attr_list {
 			RelAttr attr;
 			relation_attr_with_agg_init(&attr, "AVG", NULL, $3);
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr, CONTEXT->select_length);
 		}
 	| AVG LBRACE ID DOT ID RBRACE attr_list {
 			RelAttr attr;
 			relation_attr_with_agg_init(&attr, "MIN", $3, $5);
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr, CONTEXT->select_length);
 		}	
     ;
 
@@ -514,74 +534,74 @@ attr_list:
     | COMMA ID attr_list {
 			RelAttr attr;
 			relation_attr_init(&attr, NULL, $2);
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr, CONTEXT->select_length);
      	  // CONTEXT->ssql->sstr.selection.attributes[CONTEXT->select_length].relation_name = NULL;
         // CONTEXT->ssql->sstr.selection.attributes[CONTEXT->select_length++].attribute_name=$2;
       }
     | COMMA ID DOT ID attr_list {
 			RelAttr attr;
 			relation_attr_init(&attr, $2, $4);
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr, CONTEXT->select_length);
         // CONTEXT->ssql->sstr.selection.attributes[CONTEXT->select_length].attribute_name=$4;
         // CONTEXT->ssql->sstr.selection.attributes[CONTEXT->select_length++].relation_name=$2;
   	  }
 	| COMMA COUNT LBRACE STAR RBRACE attr_list {
 			RelAttr attr;
 			relation_attr_with_agg_init(&attr, "COUNT", NULL, "*");
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr, CONTEXT->select_length);
 	  }
 	| COMMA COUNT LBRACE ID RBRACE attr_list {
 			RelAttr attr;
 			relation_attr_with_agg_init(&attr, "COUNT", NULL, $4);
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr, CONTEXT->select_length);
 	}
 	| COMMA COUNT LBRACE ID DOT ID RBRACE attr_list {
 			RelAttr attr;
 			relation_attr_with_agg_init(&attr, "COUNT", $4, $6);
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr, CONTEXT->select_length);
 	}
 	| COMMA MAX LBRACE ID RBRACE attr_list {
 			RelAttr attr;
 			relation_attr_with_agg_init(&attr, "MAX", NULL, $4);
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr, CONTEXT->select_length);
 	}
 	| COMMA MAX LBRACE ID DOT ID RBRACE attr_list {
 			RelAttr attr;
 			relation_attr_with_agg_init(&attr, "MAX", $4, $6);
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr, CONTEXT->select_length);
 	}
 	| COMMA MIN LBRACE ID RBRACE attr_list {
 			RelAttr attr;
 			relation_attr_with_agg_init(&attr, "MIN", NULL, $4);
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr, CONTEXT->select_length);
 	}
 	| COMMA MIN LBRACE ID DOT ID RBRACE attr_list {
 			RelAttr attr;
 			relation_attr_with_agg_init(&attr, "MIN", $4, $6);
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr, CONTEXT->select_length);
 	}
 	| COMMA AVG LBRACE ID RBRACE attr_list {
 			RelAttr attr;
 			relation_attr_with_agg_init(&attr, "AVG", NULL, $4);
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr, CONTEXT->select_length);
 	} 
 	| COMMA AVG LBRACE ID DOT ID RBRACE attr_list {
 			RelAttr attr;
 			relation_attr_with_agg_init(&attr, "AVG", $4, $6);
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr, CONTEXT->select_length);
 	}
 	;
 
 rel_list:
     /* empty */
     | COMMA ID rel_list {
-				selects_append_relation(&CONTEXT->ssql->sstr.selection, $2);
+				selects_append_relation(&CONTEXT->ssql->sstr.selection, $2, CONTEXT->select_length);
 		  }
     ;
 join_list:
 	/* empty */
 	| INNER JOIN ID ON condition condition_list join_list {
-		selects_append_relation(&CONTEXT->ssql->sstr.selection, $3);
+		selects_append_relation(&CONTEXT->ssql->sstr.selection, $3, CONTEXT->select_length);
 	}
 	;
 where:
@@ -741,6 +761,29 @@ condition:
 			// $$->right_attr.relation_name=$5;
 			// $$->right_attr.attribute_name=$7;
     }
+	| ID comOp LBRACE subselect RBRACE
+	{
+		RelAttr left_attr;
+		relation_attr_init(&left_attr, NULL, $1);
+
+		value_init_subselect(&CONTEXT->values[CONTEXT->value_length++]);
+		Condition condition;
+		condition_init(&condition, CONTEXT->comp, 1, &left_attr, NULL, 0, NULL, &CONTEXT->values[CONTEXT->value_length - 1]);
+		CONTEXT->conditions[CONTEXT->condition_length++] = condition;
+
+
+	}
+	| ID DOT ID comOp LBRACE subselect RBRACE
+	{
+		
+		RelAttr left_attr;
+		relation_attr_init(&left_attr, $1, $3);
+
+		value_init_subselect(&CONTEXT->values[CONTEXT->value_length++]);
+		Condition condition;
+		condition_init(&condition, CONTEXT->comp, 1, &left_attr, NULL, 0, NULL, &CONTEXT->values[CONTEXT->value_length - 1]);
+		CONTEXT->conditions[CONTEXT->condition_length++] = condition;
+	}
     ;
 
 comOp:
@@ -752,6 +795,8 @@ comOp:
     | NE { CONTEXT->comp = NOT_EQUAL; }
     | IS NOT {CONTEXT->comp = OP_IS_NOT; }
     | IS {CONTEXT->comp = OP_IS; }
+	| IN { CONTEXT->comp = OP_IN; }
+	| NOT IN {CONTEXT->comp = OP_NOT_IN; }
     ;
 
 load_data:
