@@ -319,6 +319,7 @@ RC check_subselect(const SubSelects &subselect, const char *db, SessionEvent *se
     session_event->set_response(err);
     return RC::MISUSE;
   }
+  return RC::SUCCESS;
   
 }
 
@@ -544,7 +545,8 @@ RC ExecuteStage::do_select_recur(const char *db, Selects &selects, size_t &idx, 
                               Trx *trx, SessionEvent *session_event) {
 
   RC rc = RC::SUCCESS;
-  assert(idx>=0);
+  size_t current_idx = idx;
+  assert(idx>0);
   SubSelects &subselect = selects.subselects[idx];
   //先进行查询元数据校验
   rc = check_select_metadata(subselect, db, session_event);
@@ -553,11 +555,12 @@ RC ExecuteStage::do_select_recur(const char *db, Selects &selects, size_t &idx, 
     return rc;
   }
 
-  for(int i=subselect.condition_num-1; i>=0; i--) {
+  for(int i=0; i < subselect.condition_num; i++) {
     Condition &condition = subselect.conditions[i];
     if(condition.right_value.type == SUBSELECT) {
-      size_t sub_idx = idx - 1;
-      rc = do_select_recur(db, selects, sub_idx, res_tuple, trx, session_event);
+      //size_t sub_idx = idx + 1;
+      idx++;
+      rc = do_select_recur(db, selects, idx, res_tuple, trx, session_event);
       if(rc != RC::SUCCESS){
         LOG_ERROR("sub select query error");
         return rc;
@@ -581,12 +584,14 @@ RC ExecuteStage::do_select_recur(const char *db, Selects &selects, size_t &idx, 
       //现在condition 的right value的type还是SUBSELECT，修改value的type和num
       condition.right_value.type = type;
       condition.right_value.num = size;
+      std::cout<<"****************value type"<<type<<std::endl;
       switch(type) {
         case INTS: {
           condition.right_value.data = malloc(sizeof(int) * size);
           int *head = (int *)condition.right_value.data;
           for(int i=0; i < size; i++) {
             int value_int = *(int *)res_tuple.get(i).get_value();
+            std::cout<<"****************value int"<<value_int<<std::endl;
             head[i] = value_int;
           }
         }
@@ -596,6 +601,7 @@ RC ExecuteStage::do_select_recur(const char *db, Selects &selects, size_t &idx, 
           float *head = (float *)condition.right_value.data;
           for(int i=0; i < size; i++) {
             float value_float = *(float *)res_tuple.get(i).get_value();
+            std::cout<<"****************value float"<<value_float<<std::endl;
             head[i] = value_float;
           }
         }
@@ -616,14 +622,14 @@ RC ExecuteStage::do_select_recur(const char *db, Selects &selects, size_t &idx, 
           break;
         case DATES: {
           //如果是多个值，搞一个链表，value里的data作为头指针
-          MultiValueLinkNode<time_t> *p = new MultiValueLinkNode<time_t>();
-          p->value = ((const DateValue &)res_tuple.get(0)).get_value_time_t();
-          MultiValueLinkNode<time_t> *pre = nullptr;
+          MultiValueLinkNode<const char *> *p = new MultiValueLinkNode<const char *>();
+          p->value = strdup((const char *)(((const DateValue &)res_tuple.get(0)).get_value()));
+          MultiValueLinkNode<const char *> *pre = nullptr;
           condition.right_value.data = (void *)p;
           for(int i=1; i < size; i++) {
             pre = p;
-            p = new MultiValueLinkNode<time_t>();
-            p->value = ((const DateValue &)res_tuple.get(i)).get_value_time_t();
+            p = new MultiValueLinkNode<const char *>();
+            p->value = strdup((const char *)(((const DateValue &)res_tuple.get(0)).get_value()));
             pre->next_value = p;
           }
         }
@@ -631,13 +637,12 @@ RC ExecuteStage::do_select_recur(const char *db, Selects &selects, size_t &idx, 
         default:
           break;
       }
-      idx--;
     }
   }
 
   //对子查询单独校验
   std::cout<<"output select idx   "<<idx<<std::endl;
-  bool is_sub = (idx!= selects.select_num);
+  bool is_sub = !!current_idx;
   if(is_sub) {
     //子查询
     rc = check_subselect(subselect, db, session_event);
@@ -661,7 +666,8 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
   Session *session = session_event->get_client()->session;
   Trx *trx = session->current_trx();
   Selects &selects = sql->sstr.selection;
-  size_t idx = selects.select_num;
+  size_t idx = 0;
+  std::cout<<"output the select num of query"<<selects.select_num<<std::endl;
   Tuple res_tuple;
   rc = do_select_recur(db, selects, idx, res_tuple, trx, session_event);
   if(rc != RC::SUCCESS) {

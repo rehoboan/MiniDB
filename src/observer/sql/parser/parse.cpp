@@ -26,9 +26,29 @@ extern "C" {
 
 void debug_subselect() {
   //std::cout<<"here comes in subselect parse tree"<<std::endl;
-  printf("here comes in subselect parse tree");
+  printf("here comes in subselect parse tree\n");
 }
 
+void push_down() {
+  printf("down to son query\n");
+}
+
+void push_up() {
+  printf("up to father query\n");
+}
+
+void father_query() {
+  printf("here comes to the father select\n");
+}
+
+void son_query() {
+  printf("here comes to the son select\n");
+}
+
+void update_select_num(Selects *selects) {
+  selects->select_num++;
+  printf("***************update select num:%d\n", selects->select_num);
+}
 
 void relation_attr_init(RelAttr *relation_attr, const char *relation_name, const char *attribute_name) {
   relation_attr->agg_name = nullptr;
@@ -136,9 +156,9 @@ void value_destroy(Value *value) {
       free(value->data);
       break;
     case DATES: {
-      MultiValueLinkNode<time_t> *p = (MultiValueLinkNode<time_t> *)(value->data);
+      MultiValueLinkNode<const char *> *p = (MultiValueLinkNode<const char *> *)(value->data);
       while(p) {
-        MultiValueLinkNode<time_t> *pn = p->next_value;
+        MultiValueLinkNode<const char *> *pn = p->next_value;
         delete(p);
         p = pn;
       }
@@ -222,12 +242,12 @@ void attr_info_destroy(AttrInfo *attr_info) {
 
 void selects_init(Selects *selects, ...);
 void selects_append_attribute(Selects *selects, RelAttr *rel_attr, size_t select_num) {
-  selects->select_num = select_num;
+  printf("select_num:%d\n", select_num);
   SubSelects &subselect = selects->subselects[select_num];
   subselect.attributes[subselect.attr_num++] = *rel_attr;
+  printf("out of selects_append_attribute func\n");
 }
 void selects_append_relation(Selects *selects, const char *relation_name, size_t select_num) {
-  selects->select_num = select_num;
   std::cout<<"select_num   "<<select_num<<std::endl;
   std::cout<<"relationname    "<<relation_name<<std::endl;
   SubSelects &subselect = selects->subselects[select_num];
@@ -235,24 +255,20 @@ void selects_append_relation(Selects *selects, const char *relation_name, size_t
   subselect.relations[subselect.relation_num++] = strdup(relation_name);
 }
 
-// void selects_append_conditions(Selects *selects, Condition conditions[], size_t condition_num, size_t select_num) {
-//   SubSelects &subselect = selects->subselects[selects->select_num];
-//   assert(condition_num <= sizeof(subselect.conditions)/sizeof(subselect.conditions[0]));
-//   for (size_t i = 0; i < condition_num; i++) {
-//     subselect.conditions[i] = conditions[i];
-//   }
-//   subselect.condition_num = condition_num;
-// }
-
-void selects_append_conditions(Selects *selects, Condition conditions[], size_t condition_num, size_t sub_select_cond_idx) {
+void selects_append_conditions(Selects *selects, Condition conditions[], size_t condition_num, size_t select_num) {
   SubSelects &subselect = selects->subselects[selects->select_num];
   assert(condition_num <= sizeof(subselect.conditions)/sizeof(subselect.conditions[0]));
-  assert(sub_select_cond_idx>=0 && sub_select_cond_idx <= condition_num);
-  for(size_t i = sub_select_cond_idx; i < condition_num; i++) {
-    subselect.conditions[i - sub_select_cond_idx] = conditions[i];
+  for (size_t i = 0; i < condition_num; i++) {
+    subselect.conditions[i] = conditions[i];
   }
-  subselect.condition_num = condition_num - sub_select_cond_idx;
+  subselect.condition_num = condition_num;
 }
+
+void selects_append_condition(Selects *selects, Condition *condition, size_t select_num) {
+  SubSelects &subselect = selects->subselects[select_num];
+  subselect.conditions[subselect.condition_num++] = *condition;
+}
+
 
 void selects_destroy(Selects *selects) {
   //size_t select_num = selects->select_num;

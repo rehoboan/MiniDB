@@ -318,7 +318,7 @@ RC AggregationExeNode::execute(Tuple &tuple, std::vector<const char *> &agg_colu
                   strlen(agg_value.values.string_value));
         }
         break;
-        case 5: {//dates
+        case 4: {//dates
           tuple.add(agg_value.values.date_value);
         }
 

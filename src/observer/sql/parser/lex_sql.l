@@ -87,6 +87,7 @@ QUOTE            [\'\"]
 [Ii][Nn][Ff][Ii][Ll][Ee]                 RETURN_TOKEN(INFILE);
 
 [Ii][Ss]										RETURN_TOKEN(IS);
+[Ii][Nn]										RETURN_TOKEN(IN);
 [Nn][Oo][Tt]									RETURN_TOKEN(NOT);
 [Nn][Uu][Ll][Ll][Aa][Bb][Ll][Ee]				RETURN_TOKEN(NULLABLE);
 [Nn][Uu][Ll][Ll]								RETURN_TOKEN(NULL_T);

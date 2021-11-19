@@ -149,6 +149,20 @@ int compare_data(int left_type, const char *left_data, int right_type, const cha
   }
   else{
     // TODO 增加左为int 右为float 或左为float 右为int的比较
+    if(left_type == FLOATS && right_type == INTS || left_type == INTS && right_type == FLOATS){
+      float left = switch_data_type(left_type, FLOATS, left_data).value_f;
+      float right = switch_data_type(right_type, FLOATS, right_data).value_f;
+      float diff = left - right;
+      if(abs(diff) >= 0 && abs(diff) <= 0.000001){
+        res = 0;
+      }
+      else if(diff < 0){
+        res = -1;
+      }
+      else{
+        res = 1;
+      }
+    }
   }
 
 
@@ -175,7 +189,7 @@ int in_op(int left_type, const char *left_data, int right_type, void *right_data
       float* rights = (float*)right_data_head;
       for(int i=0; i<right_data_num; i++){
         float diff = left - rights[i];
-        if(abs(diff) <= 0.000001) {
+        if(abs(diff)>=0 && abs(diff) <= 0.000001) {
           res = 1;
           break;
         }
@@ -193,9 +207,9 @@ int in_op(int left_type, const char *left_data, int right_type, void *right_data
       return res;
     }
     case DATES: {
-      MultiValueLinkNode<time_t> *right = (MultiValueLinkNode<time_t> *)(right_data_head);
+      MultiValueLinkNode<const char *> *right = (MultiValueLinkNode<const char *> *)(right_data_head);
       while(right){
-        const char *right_data = time_t_to_str(right->value).c_str();
+        const char *right_data = right->value;
         if(!strcmp(left_data, right_data)){
           return 1;
         }

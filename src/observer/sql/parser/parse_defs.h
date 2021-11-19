@@ -89,7 +89,7 @@ typedef enum { UNDEFINED, CHARS, INTS, FLOATS, DATES, TEXTS, SUBSELECT} AttrType
 typedef struct _Value {
     int type;  // type of value
     void *data;     // value
-    size_t num;  //next value, for IN operation
+    size_t num;  //value num, for IN operation
 } Value;
 
 
@@ -252,6 +252,10 @@ extern "C" {
 #endif  // __cplusplus
 
 void debug_subselect();
+void push_down();
+void push_up();
+void father_query();
+void son_query();
 
 void relation_attr_init(RelAttr *relation_attr, const char *relation_name, const char *attribute_name);
 void relation_attr_destroy(RelAttr *relation_attr);
@@ -274,10 +278,11 @@ void attr_info_init(AttrInfo *attr_info, const char *name, int type, size_t leng
 void attr_info_destroy(AttrInfo *attr_info);
 
 void selects_init(Selects *selects, ...);
+void update_select_num(Selects *selects);
 void selects_append_attribute(Selects *selects, RelAttr *rel_attr, size_t select_num);
 void selects_append_relation(Selects *selects, const char *relation_name, size_t select_num);
-//void selects_append_conditions(Selects *selects, Condition conditions[], size_t condition_num, size_t select_num);
-void selects_append_conditions(Selects *selects, Condition conditions[], size_t condition_num, size_t sub_select_cond_idx);
+void selects_append_conditions(Selects *selects, Condition conditions[], size_t condition_num, size_t select_num);
+void selects_append_condition(Selects *selects, Condition *condition, size_t select_num);
 void selects_destroy(Selects *selects);
 
 void inserts_init(Inserts *inserts, const char *relation_name, Value values[], size_t value_num, const int row_end[], size_t row_num);
