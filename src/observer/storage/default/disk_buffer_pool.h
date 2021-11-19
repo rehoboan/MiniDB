@@ -21,6 +21,7 @@ See the Mulan PSL v2 for more details. */
 #include <string.h>
 #include <sys/stat.h>
 #include <time.h>
+#include <unordered_map>
 
 #include <vector>
 
@@ -43,8 +44,8 @@ typedef struct {
 // sizeof(Page) should be equal to BP_PAGE_SIZE
 
 typedef struct {
-  PageNum page_count;
-  int allocated_pages;
+  PageNum page_count; // page_count没有--的时候
+  int allocated_pages; // 用来记录已经用了的页
 } BPFileSubHeader;
 
 typedef struct {
@@ -59,6 +60,7 @@ typedef struct {
   bool open;
   Frame *frame;
 } BPPageHandle;
+
 
 class BPFileHandle{
 public:
@@ -76,21 +78,92 @@ public:
   BPFileSubHeader *file_sub_header;
 } ;
 
+typedef std::pair<int,int> FrameKey;
+
+class Node{
+public:
+    int index;
+    FrameKey hash_key;
+    Node* prev;
+    Node* next;
+    Node(){
+        prev= nullptr;
+        next= nullptr;
+    }
+    Node(int Index,FrameKey Hash_key){
+        index=Index;
+        hash_key=Hash_key;
+        prev= nullptr;
+        next= nullptr;
+    }
+};
+class LRU_list{
+public:
+    Node* head;
+    Node* tail;
+    LRU_list(){
+        head=new Node();
+        tail=new Node();
+        head->next=tail;
+    }
+    void insert(Node* node){
+        head->next->prev=node;
+        node->prev=head;
+        node->next=head->next;
+        head->next=node;
+    }
+    void delete_node(Node* node){
+        node->prev->next=node->next;
+        node->next->prev=node->prev;
+        delete node;
+        /*
+         * 释放node空间
+         */
+    }
+    void move_to_head(Node* node){
+        //相当于先从原位置删除node，再将node插入
+        node->prev->next=node->next;
+        node->next->prev=node->prev;
+
+        head->next->prev=node;
+        node->prev=head;
+        node->next=head->next;
+        head->next=node;
+    }
+};
+
+struct lru_hash_pair {
+    template <class T1, class T2>
+    size_t operator()(const std::pair<T1, T2>& p) const
+    {
+        auto hash1 = std::hash<T1>{}(p.first);
+        auto hash2 = std::hash<T2>{}(p.second);
+        return hash1 ^ hash2;
+    }
+};
+
+
 class BPManager {
 public:
   BPManager(int size = BP_BUFFER_SIZE) {
+      allocated_num=0;
+      lru_list=new LRU_list();
+
     this->size = size;
     frame = new Frame[size];
     allocated = new bool[size];
     for (int i = 0; i < size; i++) {
       allocated[i] = false;
       frame[i].pin_count = 0;
+      free_blocks.push_back(i);
     }
   }
 
   ~BPManager() {
     delete[] frame;
     delete[] allocated;
+    allocated_num=0;
+    lru_list= nullptr;
     size = 0;
     frame = nullptr;
     allocated = nullptr;
@@ -109,6 +182,11 @@ public:
   bool *getAllocated() { return allocated; }
 
 public:
+    int allocated_num;
+  std::vector<int> free_blocks;
+  LRU_list* lru_list;
+  std::unordered_map<FrameKey,Node*,lru_hash_pair> lru_hash;
+
   int size;
   Frame * frame = nullptr;
   bool *allocated = nullptr;
@@ -195,7 +273,7 @@ public:
   RC flush_all_pages(int file_id);
 
 protected:
-  RC allocate_block(Frame **buf);
+  RC allocate_block(Frame **buf,int file_desc,int page_num);
   RC dispose_block(Frame *buf);
 
   /**
@@ -217,4 +295,28 @@ private:
 
 DiskBufferPool *theGlobalDiskBufferPool();
 
+//
+//
+//class Node{
+//public:
+//    FrameKey key;
+//    int value;
+//    Node* prev;
+//    Node* next;
+//    Node(FrameKey Key,int Value){
+//        key=Key;
+//        value=Value;
+//        prev= nullptr;
+//        next= nullptr;
+//    }
+//};
+//
+//class LRU_BPManager{
+//public:
+//    LRU_BPManager(){
+//
+//    }
+//
+//
+//};
 #endif //__OBSERVER_STORAGE_COMMON_PAGE_MANAGER_H_

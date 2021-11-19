@@ -66,7 +66,14 @@ RC DefaultConditionFilter::init(const ConDesc &left, const ConDesc &right, int l
   comp_op_ = comp_op;
   return RC::SUCCESS;
 }
-
+/*          undefined chars ints floats dates texts
+undefined      1        1    1     1      1     1
+    chars      1        1    0     0      0     1
+     ints      1        0    1     1      0     0
+   floats      1        0    1     1      0     0
+    dates      1        0    0     0      1     0
+    texts      1        1    0     0      0     1
+*/
 int field_type_compare_compatible_table[TEXTS+1][TEXTS+1]={
         {1,1,1,1,1,1},
         {1,1,0,0,0,1},
@@ -98,6 +105,7 @@ RC DefaultConditionFilter::init(Table &table, const Condition &condition)
     left.index = table_meta.getIndex(condition.left_attr.attribute_name) - 2;
 
     left.value = nullptr;
+    left.value_num = 0;
 
     type_left = field_left->type();
   } else {
@@ -105,6 +113,7 @@ RC DefaultConditionFilter::init(Table &table, const Condition &condition)
     left.value = condition.left_value.data; // 校验type 或者转换类型
     left.attr_type = condition.left_value.type;
     type_left = condition.left_value.type;
+    left.value_num = condition.left_value.num;
   }
 
   if (1 == condition.right_is_attr) {
@@ -119,6 +128,7 @@ RC DefaultConditionFilter::init(Table &table, const Condition &condition)
     type_right = field_right->type();
     right.attr_type = field_right->type();
     right.value = nullptr;
+    right.value_num = 0;
   } else {
     right.is_attr = false;
     right.value = condition.right_value.data;
@@ -126,14 +136,17 @@ RC DefaultConditionFilter::init(Table &table, const Condition &condition)
     right.attr_type = condition.right_value.type;
     right.attr_length = 0;
     right.attr_offset = 0;
+    right.value_num = condition.right_value.num;
   }
 
   if (!field_type_compare_compatible_table[TYPE(type_left)][TYPE(type_right)]) {
     LOG_WARN("Can not compare. %d and %d", type_left, type_right);
     return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+  } else if((condition.comp==OP_IN || condition.comp==OP_NOT_IN) && (type_left != type_right)) {
+    LOG_WARN("IN operation type mismatch");
+    return RC::MISUSE;
   }
-
-
+  
   left_ = std::move(left);
   right_ = std::move(right);
   left_attr_type_ = type_left;
@@ -161,6 +174,11 @@ bool compare_res_with_op(CompOp op, int cmp_result, bool has_null){
       return has_null ? (false) : (cmp_result >= 0);
     case GREAT_THAN:
       return has_null ? (false) : (cmp_result > 0);
+    case OP_IN:
+      return has_null ? (false) : (cmp_result > 0);
+    case OP_NOT_IN:
+      return has_null ? (false) : (cmp_result == 0);
+
     default:
       break;
   }
@@ -169,66 +187,7 @@ bool compare_res_with_op(CompOp op, int cmp_result, bool has_null){
 
 bool DefaultConditionFilter::filter(const Record &rec) const
 {
-//  char *left_value = nullptr;
-//  char *right_value = nullptr;
-//
-//  if (left_.is_attr) {  // value
-//    left_value = (char *)(rec.data + left_.attr_offset);
-//  } else {
-//    left_value = (char *)left_.value;
-//  }
-//
-//  if (right_.is_attr) {
-//    right_value = (char *)(rec.data + right_.attr_offset);
-//  } else {
-//    right_value = (char *)right_.value;
-//  }
-//
-//  int cmp_result = 0;
-//  switch (attr_type_) {
-//    case CHARS: {  // 字符串都是定长的，直接比较
-//      // 按照C字符串风格来定
-//      cmp_result = strcmp(left_value, right_value);
-//    } break;
-//    case DATES: {
-//      cmp_result = strcmp(left_value, right_value);
-//    } break;
-//    case INTS: {
-//      // 没有考虑大小端问题
-//      // 对int和float，要考虑字节对齐问题,有些平台下直接转换可能会跪
-//      int left = *(int *)left_value;
-//      int right = *(int *)right_value;
-//      cmp_result = left - right;
-//    } break;
-//    case FLOATS: {
-//      float left = *(float *)left_value;
-//      float right = *(float *)right_value;
-//      cmp_result = (int)(left - right);
-//    } break;
-//    default: {
-//    }
-//  }
-//
-//  switch (comp_op_) {
-//    case EQUAL_TO:
-//      return 0 == cmp_result;
-//    case LESS_EQUAL:
-//      return cmp_result <= 0;
-//    case NOT_EQUAL:
-//      return cmp_result != 0;
-//    case LESS_THAN:
-//      return cmp_result < 0;
-//    case GREAT_EQUAL:
-//      return cmp_result >= 0;
-//    case GREAT_THAN:
-//      return cmp_result > 0;
-//
-//    default:
-//      break;
-//  }
-//
-//  LOG_PANIC("Never should print this.");
-//  return cmp_result;  // should not go here
+
   std::string tmp;
   const char *left_value = nullptr;
   bool left_null;
@@ -259,7 +218,7 @@ bool DefaultConditionFilter::filter(const Record &rec) const
     right_value = (char *)(rec.data + right_.attr_offset);
     char * data = rec.data;
     int null_v = *(int*)(data+TableMeta::null_field_offset());
-    left_null = (null_v & (1 << right_.index));
+    right_null = (null_v & (1 << right_.index));
     if(!right_null && TYPE(right_attr_type_) == TEXTS){
       right_type = CHARS;
       RID rid;
@@ -269,15 +228,24 @@ bool DefaultConditionFilter::filter(const Record &rec) const
       right_value = tmp.c_str();
     }
   }else {
-    right_value = (char *)right_.value;
+    if(comp_op_ < OP_IN) {
+      right_value = (char *)right_.value;
+    }
     right_null = (right_attr_type_ == NULL_VALUE);
   }
   int res;
   if(left_null || right_null){
     res = (left_null ^ right_null);
   }else{
-    res = compare_data(TYPE(left_type), left_value,
-                       TYPE(right_type),right_value);
+    if(comp_op_ < OP_IN) {
+      res = compare_data(TYPE(left_type), left_value,
+                        TYPE(right_type),right_value);      
+    } else if(comp_op_ == OP_IN || comp_op_== OP_NOT_IN) {
+      //todo 在这里执行in操作
+      assert(left_type == right_type);
+      res = in_op(TYPE(left_type), left_value,
+                  TYPE(right_type), right_.value, right_.value_num);
+    }
   }
 
   return compare_res_with_op(comp_op_, res, left_null || right_null);

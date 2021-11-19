@@ -19,7 +19,7 @@ See the Mulan PSL v2 for more details. */
 
 int float_compare(float f1, float f2) {
   float result = f1 - f2;
-  if (result < 1e-6 && result > -1e-6) {
+  if (result < 0.000001 && result > -0.000001) {
     return 0;
   }
   return result > 0 ? 1: -1;

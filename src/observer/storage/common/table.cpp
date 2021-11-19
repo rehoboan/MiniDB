@@ -138,6 +138,7 @@ RC Table::drop(const char *path, const char *name, const char *base_dir) {
       return rc;
     }
     //循环删除index文件
+    // 因为在一个表上可能对很多列都建了索引
     for(int i=0; i< table_meta_.index_num(); i++){
       const IndexMeta* idm = table_meta_.index(i);
       std::string index_file = index_data_file(base_dir_.c_str(), name, idm->name());

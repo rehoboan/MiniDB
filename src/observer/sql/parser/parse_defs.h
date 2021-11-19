@@ -34,6 +34,7 @@ See the Mulan PSL v2 for more details. */
 #define MAX_DATA 50
 #define MAX_CHAR_LEN 100
 #define MAX_DATE_LEN 10
+#define MAX_SELECTS_NUM 5
 
 #define SYS_TEXT_TABLE_NAME "__TEXT"
 #define SYS_TEXT_TABLE_COL1 "__TEXT_COL_INT1"
@@ -45,6 +46,15 @@ See the Mulan PSL v2 for more details. */
 
 #include <stddef.h>
 #include <stdbool.h>
+
+// template<class T>
+// struct MultiValueLinkNode {
+//   T value;
+
+//   MultiValueLinkNode<T> *next_value;
+
+//   //MultiValueLinkNode(): next_value(nullptr){}
+// };
 
 //属性结构体
 typedef struct {
@@ -62,6 +72,8 @@ typedef enum {
     GREAT_THAN,   //">"     5
     OP_IS,
     OP_IS_NOT,
+    OP_IN,
+    OP_NOT_IN,
     NO_OP
 } CompOp;
 
@@ -70,14 +82,16 @@ typedef enum {
 
 typedef enum {COUNTS, MAXS, MINS, AVGS} AggType;
 
-typedef enum { UNDEFINED, CHARS, INTS, FLOATS, DATES, TEXTS } AttrType;
+typedef enum { UNDEFINED, CHARS, INTS, FLOATS, DATES, TEXTS, SUBSELECT} AttrType;
 
 
 //属性值
 typedef struct _Value {
     int type;  // type of value
     void *data;     // value
+    size_t num;  //next value, for IN operation
 } Value;
+
 
 typedef struct _AggValue {
   union {
@@ -96,6 +110,8 @@ typedef struct _AggInfo {
 } AggInfo;
 
 
+
+
 typedef struct _Condition {
     int left_is_attr;    // TRUE if left-hand side is an attribute
     // 1时，操作符左边是属性名，0时，是属性值
@@ -108,6 +124,7 @@ typedef struct _Condition {
     Value right_value;   // right-hand side value if right_is_attr = FALSE
 } Condition;
 
+
 // struct of select
 typedef struct {
     size_t    attr_num;               // Length of attrs in Select clause
@@ -116,7 +133,12 @@ typedef struct {
     char *    relations[MAX_NUM];     // relations in From clause
     size_t    condition_num;          // Length of conditions in Where clause
     Condition conditions[MAX_NUM];    // conditions in Where clause
-} Selects;
+} SubSelects;
+
+typedef struct {
+    SubSelects subselects[MAX_SELECTS_NUM];
+    size_t select_num; //max subselect index
+}Selects;
 
 // struct of insert
 typedef struct {
@@ -229,6 +251,8 @@ typedef struct Query {
 extern "C" {
 #endif  // __cplusplus
 
+void debug_subselect();
+
 void relation_attr_init(RelAttr *relation_attr, const char *relation_name, const char *attribute_name);
 void relation_attr_destroy(RelAttr *relation_attr);
 void relation_attr_with_agg_init(RelAttr *relation_attr, const char *agg_name, 
@@ -239,6 +263,7 @@ void value_init_integer(Value *value, int v);
 void value_init_float(Value *value, float v);
 void value_init_string(Value *value, const char *v);
 void value_init_date(Value *value, const char *v);
+void value_init_subselect(Value *value);
 void value_destroy(Value *value);
 
 void condition_init(Condition *condition, CompOp comp, int left_is_attr, RelAttr *left_attr, Value *left_value,
@@ -249,9 +274,10 @@ void attr_info_init(AttrInfo *attr_info, const char *name, int type, size_t leng
 void attr_info_destroy(AttrInfo *attr_info);
 
 void selects_init(Selects *selects, ...);
-void selects_append_attribute(Selects *selects, RelAttr *rel_attr);
-void selects_append_relation(Selects *selects, const char *relation_name);
-void selects_append_conditions(Selects *selects, Condition conditions[], size_t condition_num);
+void selects_append_attribute(Selects *selects, RelAttr *rel_attr, size_t select_num);
+void selects_append_relation(Selects *selects, const char *relation_name, size_t select_num);
+//void selects_append_conditions(Selects *selects, Condition conditions[], size_t condition_num, size_t select_num);
+void selects_append_conditions(Selects *selects, Condition conditions[], size_t condition_num, size_t sub_select_cond_idx);
 void selects_destroy(Selects *selects);
 
 void inserts_init(Inserts *inserts, const char *relation_name, Value values[], size_t value_num, const int row_end[], size_t row_num);
