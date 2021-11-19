@@ -401,15 +401,18 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
   std::vector<std::pair<const char *, const char *>> select_columns;
   //<aggregation column, agginfo>
   std::vector<std::pair<const char *, AggInfo>> agg_infos;
+//  std::unordered_map<const char *, int> selected_group_info_map;
+  std::vector<std::pair<const char *, int>> selected_group_infos;
 
   bool is_multi_table = false;
   //处理带星号的查询,不支持多个属性和*同时出现
   if(selects.attr_num == 1 && strcmp(selects.attributes[0].attribute_name, "*") == 0 &&
       selects.attributes[0].agg_name == nullptr) {
-    is_multi_table = !(selects.relation_num==1);
+    is_multi_table = selects.relation_num != 1;
     create_select_columns_with_star(db, selects, select_columns);
   } else {
     for(int i = selects.attr_num - 1; i >= 0; i--) {
+
       const char *attr_name = selects.attributes[i].attribute_name;
       const char *relation_name = selects.attributes[i].relation_name;
       const char *agg_name = selects.attributes[i].agg_name;
@@ -425,29 +428,34 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
       }
   
       //如果该聚集函数名为空，只是普通选择列，将该列加入到selection columns中
-      if(agg_name == nullptr)
-        select_columns.emplace_back(relation_name, attr_name); 
+      if(agg_name == nullptr){
+        select_columns.emplace_back(relation_name, attr_name);
+        selected_group_infos.emplace_back("select_columns",select_columns.size()-1);
+      }
+
       else {//如果是聚集函数列，构造聚集列名（判断是否是单表查询），初始化aggregation信息，加入到agg infos中
-        bool display_table = !(selects.relation_num==1);
+        bool display_table = selects.relation_num != 1;
         const char *agg_column_name = create_agg_columns_name(relation_name, attr_name, agg_name, display_table);
         AggInfo agg_info;
         init_aggregation(relation_name, attr_name, agg_name, agg_info);        
         agg_infos.emplace_back(agg_column_name, agg_info);
+        selected_group_infos.emplace_back("agg_infos",agg_infos.size()-1);
       }
     }
   }
     //初始化并执行聚集操作
   bool is_agg = false;
+  bool is_group = false;
   std::stringstream ss;
-  if(select_columns.size()>0 && agg_infos.size()>0) {
+  if(select_columns.size()>0 && agg_infos.size()>0 && selects.group_num == 0) {
     rc = RC::SQL_SYNTAX;
-    char err[256];
-    sprintf("aggregation function and column selection conflict", err);
-    LOG_WARN("aggregation function and column selection conflict");
-    session_event->set_response(err);
+    end_trx_if_need(session, trx, false);
     return rc;
   } else if(agg_infos.size()>0) {
     is_agg = true;
+  }
+  if(selects.group_num > 0){
+    is_group = true;
   }
 
 //  order table
@@ -461,18 +469,20 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
 
 //  group by table
   std::unordered_map<std::string, TupleSet> group_map;
-  if(sql->sstr.selection.group_num > 0){
-    group_map = res_table.set_group_by(sql->sstr.selection);
+  if(is_group){
+    RC rc = res_table.set_group_by(sql->sstr.selection, group_map);
+    if (rc != RC::SUCCESS){
+      end_trx_if_need(session, trx, false);
+      return rc;
+    }
   }
 
   if(!is_agg) {
     res_table.print(ss, select_columns, is_multi_table);
   } else {
 
-
     AggregationExeNode agg_node;
     rc = create_aggregation_executor(trx, res_table, agg_infos, agg_node, session_event);
-    //agg_node.init(trx, &res_table, agg_infos);
     if(rc != RC::SUCCESS) {
       end_trx_if_need(session, trx, false);
       return rc;
@@ -480,20 +490,36 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
 
     TupleSet agg_res_v;
     std::vector<const char *> agg_columns;
+    std::vector<const char *> sel_columns;
 
     for(int i=0; i < agg_infos.size(); i++) {
       const char *agg_column_name = agg_infos[i].first;
       agg_columns.push_back(agg_column_name);
     }
 
+    for (int i = 0; i < select_columns.size(); ++i) {
+      const char * attr = select_columns[i].first;
+      const char * real = select_columns[i].second;
+      if (!is_multi_table){
+        sel_columns.push_back(real);
+      }else{
+        char* res_part = new char(strlen(attr) + 1 + strlen(real));
+        std::strcpy(res_part,attr);
+        std::strcat(res_part,".");
+        std::strcat(res_part, real);
+        sel_columns.push_back(res_part);
+      }
+    }
+
     if(sql->sstr.selection.group_num == 0){
       Tuple agg_res;
-      rc = agg_node.execute(agg_res, agg_columns, nullptr);
+      rc = agg_node.execute(agg_res, agg_columns, nullptr, select_columns, selected_group_infos);
       agg_res_v.add(std::move(agg_res));
     }else{
       for(auto &it : group_map){
         Tuple agg_res;
-        agg_node.execute(agg_res, agg_columns, const_cast<std::vector<Tuple> *>(&it.second.tuples()));
+        agg_node.execute(agg_res, agg_columns, const_cast<std::vector<Tuple> *>(&it.second.tuples()), select_columns,
+                         selected_group_infos);
         agg_res_v.add(std::move(agg_res));
       }
     }
@@ -504,11 +530,23 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
       return rc;
     }
 
+    //
+
+
     //print aggregation selection columns
-    for(int i=0; i<agg_columns.size()-1; i++) {
-      ss<<agg_columns[i] << " | ";
+    std::vector<const char *> columns;
+    for(auto &it : selected_group_infos){
+      int i = it.second;
+      if(strcmp(it.first,"agg_infos") == 0){
+        columns.push_back(agg_columns[i]);
+      }else{
+        columns.push_back(sel_columns[i]);
+      }
     }
-    ss<<agg_columns.back()<<std::endl;
+    for(int i=0; i<columns.size()-1; i++) {
+      ss<<columns[i] << " | ";
+    }
+    ss<<columns.back()<<std::endl;
 
     //print data
     for(auto &agg_res:agg_res_v.tuples()){

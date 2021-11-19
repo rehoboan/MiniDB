@@ -95,7 +95,8 @@ public:
 //  RC execute(Tuple &tuple, std::vector<const char *> &agg_columns);
 //  RC execute(std::vector<Tuple> tuples, std::vector<const char *> &agg_columns,
 //               std::unordered_map<std::string, std::vector<Tuple>> group_map);
-    RC execute(Tuple &tuple, std::vector<const char *> &agg_columns, std::vector<Tuple> *tuples_);
+    RC execute(Tuple &tuple, std::vector<const char *> &agg_columns, std::vector<Tuple> *tuples_,
+               const std::vector<std::pair<const char *, const char *>>& vector, std::vector<std::pair<const char *, int>> map);
 private:
   RC init_index_map(std::unordered_map<const char *, int> &map);
   RC max(const TupleValue &value, AggValue &res);

@@ -123,7 +123,6 @@ public:
 private:
   std::vector<TupleField> fields_;
 
-
 };
 
 class TupleSet {
@@ -160,7 +159,8 @@ public:
     return schema_;
   }
   RC sort(Selects selects);
-  std::unordered_map<std::string,TupleSet> set_group_by(Selects selects);
+  RC set_group_by(Selects selects, std::unordered_map<std::string,TupleSet> &);
+//  std::unordered_map<std::string,TupleSet> set_group_by(Selects selects);
 private:
   std::vector<Tuple> tuples_;
   TupleSchema schema_;

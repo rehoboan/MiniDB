@@ -192,7 +192,7 @@ void TupleSet::print(std::ostream &os) const {
 
 
 void TupleSet::print(std::ostream &os, std::vector<std::pair<const char *, const char *>> &select_columns, bool is_multi_table) {
-  if (schema_.fields().empty() || select_columns.size()==0) {
+  if (schema_.fields().empty() || select_columns.empty()) {
     LOG_WARN("Got empty schema");
     return;
   }
@@ -308,8 +308,8 @@ RC TupleSet::sort(Selects selects) {
 
 }
 
-std::unordered_map<std::string,TupleSet>  TupleSet::set_group_by(Selects selects) {
-  std::unordered_map<std::string,TupleSet> group_map;
+RC  TupleSet::set_group_by(Selects selects, std::unordered_map<std::string,TupleSet> &group_map) {
+
   int field_index;
   std::vector<int> group_index_v;
   for (int i = 0; i < selects.group_num; ++i) {
@@ -318,6 +318,10 @@ std::unordered_map<std::string,TupleSet>  TupleSet::set_group_by(Selects selects
     } else {
       field_index = schema_.index_of_field(selects.group_des[i].relation_name, selects.group_des[i].attribute_name);
     }
+    if (field_index == -1){
+      return RC::SCHEMA_FIELD_NOT_EXIST;
+    }
+
     group_index_v.push_back(field_index);
   }
 
@@ -336,7 +340,7 @@ std::unordered_map<std::string,TupleSet>  TupleSet::set_group_by(Selects selects
     }
     group_map[key.str()].add(std::move(tuple));
   }
-  return group_map;
+  return RC::SUCCESS;
 }
 
 
