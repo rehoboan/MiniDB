@@ -1,8 +1,8 @@
-/* A Bison parser, made by GNU Bison 3.8.2.  */
+/* A Bison parser, made by GNU Bison 3.7.1.  */
 
 /* Bison interface for Yacc-like parsers in C
 
-   Copyright (C) 1984, 1989-1990, 2000-2015, 2018-2021 Free Software Foundation,
+   Copyright (C) 1984, 1989-1990, 2000-2015, 2018-2020 Free Software Foundation,
    Inc.
 
    This program is free software: you can redistribute it and/or modify
@@ -16,7 +16,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 /* As a special exception, you may create a larger work that contains
    part or all of the Bison parser skeleton and distribute that work
@@ -120,7 +120,10 @@ extern int yydebug;
     PATH = 321,                    /* PATH  */
     SSS = 322,                     /* SSS  */
     STAR = 323,                    /* STAR  */
-    STRING_V = 324                 /* STRING_V  */
+    STRING_V = 324,                /* STRING_V  */
+    ADD = 325,                     /* ADD  */
+    MINUS = 326,                   /* MINUS  */
+    DIV = 327                      /* DIV  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -138,8 +141,9 @@ union YYSTYPE
   char *string;
   int number;
   float floats;
+  struct expression_ *expressions;
 
-#line 143 "yacc_sql.tab.h"
+#line 147 "yacc_sql.tab.h"
 
 };
 typedef union YYSTYPE YYSTYPE;
@@ -149,8 +153,6 @@ typedef union YYSTYPE YYSTYPE;
 
 
 
-
 int yyparse (void *scanner);
-
 
 #endif /* !YY_YY_YACC_SQL_TAB_H_INCLUDED  */
