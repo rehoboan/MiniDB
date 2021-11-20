@@ -159,6 +159,7 @@ ParserContext *get_context(yyscan_t scanner)
   char *string;
   int number;
   float floats;
+  struct expression_ *expressions;
 }
 
 %token <number> NUMBER
@@ -175,6 +176,12 @@ ParserContext *get_context(yyscan_t scanner)
 %type <condition1> condition;
 %type <value1> value;
 %type <number> number;
+%type <expressions> expression_cluster;
+%type <expressions> expression;
+%type <expressions> primary_expression;
+
+%left ADD MINUS
+%left STAR DIV
 %%
 
 commands:		//commands or sqls. parser starts here.
@@ -498,13 +505,18 @@ pushup:
 	}
 	;
 select_attr:
-    STAR {
+    	STAR {
 			RelAttr attr;
 			relation_attr_init(&attr, NULL, "*");
 			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr, CONTEXT->attr_level);
 			CONTEXT->attr_level++;
 		}
-    | ID attr_list {
+	| expression_cluster attr_list{
+			selects_append_expression(&CONTEXT->ssql->sstr.selection, $1, CONTEXT->attr_level);
+			CONTEXT->attr_level++;
+	}
+
+    	| ID attr_list {
 			RelAttr attr;
 			relation_attr_init(&attr, NULL, $1);
 			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr, CONTEXT->attr_level);
@@ -570,11 +582,16 @@ select_attr:
 			relation_attr_with_agg_init(&attr, "AVG", $3, $5);
 			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr, CONTEXT->attr_level);
 			CONTEXT->attr_level++;
-		}	
+		}
+
+	|
     ;
 
 attr_list:
     /* empty */
+    | COMMA expression_cluster attr_list{
+			selects_append_expression(&CONTEXT->ssql->sstr.selection, $2, CONTEXT->attr_level);
+    }
     | COMMA ID attr_list {
 			RelAttr attr;
 			relation_attr_init(&attr, NULL, $2);
@@ -873,7 +890,7 @@ condition:
 			// $$->right_is_attr = 1;		//属性
 			// $$->right_attr.relation_name=$5;
 			// $$->right_attr.attribute_name=$7;
-    }
+    	}
 	| ID comOp subselect 
 	{
 		RelAttr left_attr;
@@ -899,7 +916,112 @@ condition:
 		selects_append_condition(&CONTEXT->ssql->sstr.selection, &condition, CONTEXT->condition_level);
 		CONTEXT->conditions[CONTEXT->condition_length++] = condition;
 	}
+	| ID comOp expression_cluster{
+
+	}
+	| ID DOT ID comOp expression_cluster{
+
+	}
+	| value comOp expression_cluster{
+
+	}
+	| expression_cluster comOp ID{
+
+	}
+	| expression_cluster comOp ID DOT ID{
+
+	}
+	| expression_cluster comOp value{
+
+	}
+	| expression_cluster comOp expression_cluster
+	{
+		Condition condition;
+		condition_init_expr(&condition,$1,$3,CONTEXT->comp);
+		selects_append_condition(&CONTEXT->ssql->sstr.selection, &condition, CONTEXT->condition_level);
+                CONTEXT->conditions[CONTEXT->condition_length++] = condition;
+	}
+
+
     ;
+
+expression_cluster:
+	LBRACE expression RBRACE
+	{
+		$$ = $2;
+	}
+	| expression STAR expression
+	{
+		Expression *exp = malloc(sizeof(Expression));
+		expression_init(exp,3,$1,$3);
+		$$ = exp;
+	}
+	| expression DIV expression
+	{
+		Expression *exp = malloc(sizeof(Expression));
+		expression_init(exp,4,$1,$3);
+		$$ = exp;
+	}
+	|
+	expression ADD expression
+	{
+		Expression *exp = malloc(sizeof(Expression));
+		expression_init(exp,1,$1,$3);
+		$$ = exp;
+	}
+	| expression MINUS expression
+	{
+		Expression *exp = malloc(sizeof(Expression));
+		expression_init(exp,2,$1,$3);
+		$$ = exp;
+	}
+
+expression:
+	primary_expression{
+		$$ = $1;
+	}
+	;
+
+primary_expression:
+	NUMBER
+	{
+		Expression *exp = malloc(sizeof(Expression));
+		Value value;
+		value_init_integer(&value,$1);
+		expression_init_val(exp, &value);
+		$$ = exp;
+	}
+	| FLOAT
+	{
+		Expression *exp = malloc(sizeof(Expression));
+		Value value;
+                value_init_float(&value, $1);
+		expression_init_val(exp,&value);
+		$$ = exp;
+	}
+	| ID
+	{
+		RelAttr attr;
+		relation_attr_init(&attr, NULL, $1);
+		Expression *exp = malloc(sizeof(Expression));
+		expression_init_attr(exp,&attr);
+		$$ = exp;
+      	}
+    	| ID DOT ID{
+		RelAttr attr;
+		relation_attr_init(&attr, $3, $1);
+		Expression *exp = malloc(sizeof(Expression));
+		expression_init_attr(exp,&attr);
+		$$ = exp;
+  	}
+//    	| ID DOT STAR{
+//		RelAttr attr;
+//		relation_attr_init(&attr, $1, '*');
+//		Expression *exp = malloc(sizeof(Expression));
+//		expression_init_attr(exp,attr);
+//		$$ = exp;
+//            }
+	;
 
 comOp:
       EQ { CONTEXT->comp = EQUAL_TO; }

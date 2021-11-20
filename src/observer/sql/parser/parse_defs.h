@@ -118,8 +118,24 @@ typedef struct _AggInfo {
   const char *attr_name;
 } AggInfo;
 
+typedef enum {
+    // Binary operators.
+    kOpPlus = 1,
+    kOpMinus = 2,
+    kOpAsterisk = 3,
+    kOpSlash = 4
+}OperatorType;
 
-
+typedef struct _Expression{
+    RelAttr attr;
+    int is_attr;
+    Value value;
+    int is_value;
+    struct _Expression *left_expr;
+    struct _Expression *right_expr;
+    OperatorType operator_type;
+    int is_operator;
+}Expression;
 
 typedef struct _Condition {
     int left_is_attr;    // TRUE if left-hand side is an attribute
@@ -131,6 +147,10 @@ typedef struct _Condition {
     // 1时，操作符右边是属性名，0时，是属性值
     RelAttr right_attr;  // right-hand side attribute if right_is_attr = TRUE 右边的属性
     Value right_value;   // right-hand side value if right_is_attr = FALSE
+    int left_is_expr;
+    Expression *left_expr;
+    int right_is_expr;
+    Expression *right_expr;
 } Condition;
 
 
@@ -146,6 +166,8 @@ typedef struct {
     OrderDescription order_des[MAX_NUM];
     GroupByDescription group_des[MAX_NUM];
     size_t    group_num;
+    Expression expr_des[MAX_NUM];
+    size_t    expr_num;
 }SubSelects;
 
 typedef struct {
@@ -265,11 +287,17 @@ typedef struct Query {
 extern "C" {
 #endif  // __cplusplus
 
+
+
+
+
 void debug_subselect();
 void push_down();
 void push_up();
 void father_query();
 void son_query();
+
+
 
 void relation_attr_init(RelAttr *relation_attr, const char *relation_name, const char *attribute_name);
 void relation_attr_destroy(RelAttr *relation_attr);
@@ -285,8 +313,18 @@ void value_init_date(Value *value, const char *v);
 void value_init_subselect(Value *value);
 void value_destroy(Value *value);
 
+
+//void expression_init(exp,4,$1,$3);
+//void expression_init_val(exp,$1);
+//void expression_init_attr(exp,attr);
+
+void expression_init(Expression *expr, OperatorType operator_type, Expression *left_expr, Expression *right_expr);
+void expression_init_val(Expression *expr, Value *value);
+void expression_init_attr(Expression *expr,RelAttr *attr);
+
 void condition_init(Condition *condition, CompOp comp, int left_is_attr, RelAttr *left_attr, Value *left_value,
                     int right_is_attr, RelAttr *right_attr, Value *right_value);
+void condition_init_expr(Condition *condition,Expression *left_expr,Expression *right_expr,CompOp comp);
 void condition_destroy(Condition *condition);
 
 void attr_info_init(AttrInfo *attr_info, const char *name, int type, size_t length, bool nullable);
@@ -301,6 +339,7 @@ void selects_append_condition(Selects *selects, Condition *condition, size_t sel
 //void selects_append_orders(Selects *selects, OrderDescription *order);
 void selects_append_orders(Selects *selects, OrderDescription orders[], size_t order_num, size_t select_num);
 void selects_append_groups(Selects *selects, GroupByDescription groups[], size_t group_num, size_t select_num);
+void selects_append_expression(Selects *selects, Expression expressions[], size_t select_num);
 void selects_destroy(Selects *selects);
 
 void inserts_init(Inserts *inserts, const char *relation_name, Value values[], size_t value_num, const int row_end[], size_t row_num);

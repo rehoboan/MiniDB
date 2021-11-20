@@ -23,6 +23,32 @@ RC parse(char *st, Query *sqln);
 extern "C" {
 #endif // __cplusplus
 
+void expression_init(Expression *expr, OperatorType operator_type, Expression *left_expr, Expression *right_expr){
+  expr->left_expr = left_expr;
+  expr->right_expr = right_expr;
+  expr->operator_type = operator_type;
+  expr->is_value = 0;
+  expr->is_attr = 0;
+  expr->is_operator = 1;
+}
+
+void expression_init_val(Expression *expr, Value *value){
+  expr->value = *value;
+  expr->right_expr = nullptr;
+  expr->left_expr = nullptr;
+  expr->is_value = 1;
+  expr->is_attr = 0;
+  expr->is_operator = 0;
+}
+
+void expression_init_attr(Expression *expr,RelAttr *attr){
+  expr->attr = *attr;
+  expr->right_expr = nullptr;
+  expr->left_expr = nullptr;
+  expr->is_value = 0;
+  expr->is_attr = 1;
+  expr->is_operator = 0;
+}
 
 void debug_subselect() {
   //std::cout<<"here comes in subselect parse tree"<<std::endl;
@@ -220,6 +246,14 @@ void condition_init(Condition *condition, CompOp comp,
     condition->right_value = *right_value;
   }
 }
+void condition_init_expr(Condition *condition,Expression *left_expr,Expression *right_expr,CompOp comp){
+  condition->comp = comp;
+  condition->left_expr = left_expr;
+  condition->right_expr = right_expr;
+//  condition->left_is_expr = 1;
+}
+
+
 void condition_destroy(Condition *condition) {
   if (condition->left_is_attr) {
     relation_attr_destroy(&condition->left_attr);
@@ -302,6 +336,11 @@ void selects_append_groups(Selects *selects, GroupByDescription groups[], size_t
     subselect.group_des[i] = groups[i];
   }
   subselect.group_num = group_num;
+}
+
+void selects_append_expression(Selects *selects, Expression *expressions, size_t select_num){
+  SubSelects &subselect = selects->subselects[select_num];
+  subselect.expr_des[subselect.expr_num++] = *expressions;
 }
 
 void selects_destroy(Selects *selects) {

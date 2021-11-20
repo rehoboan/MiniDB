@@ -40,7 +40,10 @@ QUOTE            [\'\"]
 
 ";"                 	 				         RETURN_TOKEN(SEMICOLON);
 {DOT}                 					         RETURN_TOKEN(DOT);
+"+"                                             RETURN_TOKEN(ADD);
+"-"                                             RETURN_TOKEN(MINUS);
 "*"                   					         RETURN_TOKEN(STAR);
+"/"                                             RETURN_TOKEN(DIV);
 [Ee][Xx][Ii][Tt]						         RETURN_TOKEN(EXIT);
 
 [Cc][Oo][Uu][Nn][Tt]							RETURN_TOKEN(COUNT);
