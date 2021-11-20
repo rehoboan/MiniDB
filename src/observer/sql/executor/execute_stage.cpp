@@ -658,7 +658,7 @@ RC ExecuteStage::do_select_recur(const char *db, Selects &selects, size_t &idx, 
         if(size > 1 && !(condition.comp == OP_IN || condition.comp == OP_NOT_IN)) {
           LOG_ERROR("Only IN operation support set data");
           char err[256];
-          sprintf(err, "FAILURE");
+          sprintf(err, "FAILURE\n");
           session_event->set_response(err);
           return RC::MISUSE;
         }
