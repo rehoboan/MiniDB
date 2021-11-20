@@ -17,7 +17,7 @@ See the Mulan PSL v2 for more details. */
 
 
 #include <stddef.h>
-
+#include <time.h>
 
 #define NULL_VALUE (1<<31)
 #define ALLOW_NULL(type) (type & NULL_VALUE)
@@ -94,7 +94,7 @@ typedef struct _Value {
 } Value;
 
 
-typedef struct MultiValueLinkNode {
+struct MultiValueLinkNode{
   const char* value;
 
   struct MultiValueLinkNode *next_value;
