@@ -156,6 +156,7 @@ typedef struct _Condition {
 
 // struct of select
 typedef struct {
+
     size_t    attr_num;               // Length of attrs in Select clause
     RelAttr   attributes[MAX_NUM];    // attrs in Select clause
     Expression expr_des[MAX_NUM];

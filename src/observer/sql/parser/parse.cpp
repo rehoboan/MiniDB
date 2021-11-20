@@ -19,6 +19,8 @@ See the Mulan PSL v2 for more details. */
 
 RC parse(char *st, Query *sqln);
 
+void expr_attr_destroy(Expression *pExpression);
+
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
@@ -284,12 +286,17 @@ void condition_init(Condition *condition, CompOp comp,
 void condition_destroy(Condition *condition) {
   if (condition->left_is_attr) {
     relation_attr_destroy(&condition->left_attr);
-  } else {
+  }else if (condition->left_is_expr){
+    expr_attr_destroy(condition->left_expr);
+  }else {
     value_destroy(&condition->left_value);
   }
   if (condition->right_is_attr) {
     relation_attr_destroy(&condition->right_attr);
-  } else {
+  }
+  else if (condition->right_is_expr){
+    expr_attr_destroy(condition->right_expr);
+  }else{
     value_destroy(&condition->right_value);
   }
 }
@@ -622,7 +629,21 @@ void query_destroy(Query *query) {
   free(query);
 }
 #ifdef __cplusplus
-} // extern "C"
+}
+
+void expr_attr_destroy(Expression *pExpression) {
+//  if (pExpression == nullptr){
+//    return;
+//  }
+//
+//  if (pExpression->is_operator){
+//    expr_attr_destroy(pExpression->left_expr);
+//    expr_attr_destroy(pExpression->right_expr);
+//  }else if (pExpression->is_attr){
+//      free(&pExpression->attr);
+//  }else{
+}
+// extern "C"
 #endif // __cplusplus
 
 ////////////////////////////////////////////////////////////////////////////////

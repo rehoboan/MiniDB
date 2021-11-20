@@ -752,6 +752,7 @@ RC ExecuteStage::do_select_recur(const char *db, Selects &selects, size_t &idx, 
 
 }
 
+
 RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_event) {
   RC rc = RC::SUCCESS;
   Session *session = session_event->get_client()->session;
@@ -768,8 +769,6 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
   }
   return RC::SUCCESS;
 }
-
-
 
 
 //join operation between two relation
@@ -823,8 +822,6 @@ RC join_tables(Trx *trx,
     for (const char *name : table_names) {
       name2value[name] = join_table;
     }
-
-
   }
   return RC::SUCCESS;
 }
