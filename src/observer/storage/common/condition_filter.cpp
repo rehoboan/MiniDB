@@ -131,9 +131,13 @@ RC DefaultConditionFilter::init(Table &table, const Condition &condition)
   if (!field_type_compare_compatible_table[TYPE(type_left)][TYPE(type_right)]) {
     LOG_WARN("Can not compare. %d and %d", type_left, type_right);
     return RC::SCHEMA_FIELD_TYPE_MISMATCH;
-  } else if((condition.comp==OP_IN || condition.comp==OP_NOT_IN) && (type_left != type_right)) {
-    LOG_WARN("IN operation type mismatch");
-    return RC::MISUSE;
+  } else if((condition.comp==OP_IN || condition.comp==OP_NOT_IN)) {
+    if((type_left != type_right)) {
+      if(!(type_left == FLOATS && type_right==INTS || type_left == INTS && type_right ==FLOATS)) {
+        LOG_WARN("IN operation type mismatch");
+        return RC::MISUSE;
+      }
+    }
   }
   
   left_ = std::move(left);
@@ -176,7 +180,7 @@ bool compare_res_with_op(CompOp op, int cmp_result, bool has_null){
     case OP_IN:
       return !has_null && (cmp_result > 0);
     case OP_NOT_IN:
-      return has_null && (cmp_result == 0);
+      return !has_null && (cmp_result == 0);
 
     default:
       break;
@@ -239,8 +243,8 @@ bool DefaultConditionFilter::filter(const Record &rec) const
       res = compare_data(TYPE(left_type), left_value,
                         TYPE(right_type),right_value);      
     } else if(comp_op_ == OP_IN || comp_op_== OP_NOT_IN) {
-      //todo 在这里执行in操作
-      assert(left_type == right_type);
+      //todo 在这里执行in操作，in允许int 和float之间比较
+      //assert(left_type == right_type);
       res = in_op(TYPE(left_type), left_value,
                   TYPE(right_type), right_.value, right_.value_num);
     }

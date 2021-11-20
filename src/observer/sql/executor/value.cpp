@@ -173,24 +173,41 @@ int in_op(int left_type, const char *left_data, int right_type, void *right_data
   switch (left_type) {
     case INTS: {
       int left = *(int*)left_data;
-      int *rights = (int*)right_data_head;
-      for(int i=0; i<right_data_num; i++){
-        if(left == rights[i]) {
-          return 1;
+      if(right_type == INTS){
+        int *rights = (int*)right_data_head;
+        for(int i=0; i<right_data_num; i++){
+          if(left == rights[i]) {
+            return 1;
+          }
+        }        
+      } else if(right_type == FLOATS){
+        float *rights = (float*)right_data_head;
+        for(int i=0; i<right_data_num; i++){
+          if(std::abs(rights[i]-left)<=0.000001)
+            return 1;
         }
       }
       return res;
     }
     case FLOATS: {
       float left = switch_data_type(left_type, FLOATS, left_data).value_f;
-      float* rights = (float*)right_data_head;
-      for(int i=0; i<right_data_num; i++){
-        float diff = left - rights[i];
-        if(std::abs(diff)>=0 && std::abs(diff) <= 0.000001) {
-          res = 1;
-          break;
+      if(right_type == FLOATS) {
+        float* rights = (float*)right_data_head;
+        for(int i=0; i<right_data_num; i++){
+          float diff = left - rights[i];
+          if(std::abs(diff)>=0 && std::abs(diff) <= 0.000001) {
+            return 1;
+          }
+        }       
+      } else if(right_type == INTS) {
+        int* rights = (int *)right_data_head;
+        for(int i=0; i<right_data_num; i++){
+          float diff = left - rights[i];
+          if(std::abs(diff)>=0 && std::abs(diff) <= 0.000001)
+            return 1;
         }
       }
+
       return res;
     }
     case CHARS: {
