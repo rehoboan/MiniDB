@@ -262,7 +262,7 @@ void condition_init(Condition *condition, CompOp comp,
     condition->left_value = *left_value;
   }
   condition->right_is_attr = right_is_attr;
-  condition->right_is_attr = right_is_expr;
+  condition->right_is_expr = right_is_expr;
   if (right_is_attr) {
     condition->right_attr = *right_attr;
   }else if(right_is_expr){

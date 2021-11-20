@@ -749,15 +749,6 @@ condition:
 			condition_init(&condition, CONTEXT->comp[CONTEXT->condition_level], 1, &left_attr, NULL, 0, NULL, right_value, NULL, NULL, 0, 0);
 			selects_append_condition(&CONTEXT->ssql->sstr.selection, &condition, CONTEXT->condition_level);
 			CONTEXT->conditions[CONTEXT->condition_length++] = condition;
-			// $$ = ( Condition *)malloc(sizeof( Condition));
-			// $$->left_is_attr = 1;
-			// $$->left_attr.relation_name = NULL;
-			// $$->left_attr.attribute_name= $1;
-			// $$->comp = CONTEXT->comp;
-			// $$->right_is_attr = 0;
-			// $$->right_attr.relation_name = NULL;
-			// $$->right_attr.attribute_name = NULL;
-			// $$->right_value = *$3;
 
 		}
 		|value comOp value
@@ -943,7 +934,7 @@ condition:
 		relation_attr_init(&left_attr, NULL, $1);
 
 		Condition condition;
-		condition_init(&condition, CONTEXT->comp, 1, &left_attr, NULL, 0, NULL, NULL, NULL, $3, 0, 1);
+		condition_init(&condition, CONTEXT->comp[CONTEXT->condition_level], 1, &left_attr, NULL, 0, NULL, NULL, NULL, $3, 0, 1);
 
 		selects_append_condition(&CONTEXT->ssql->sstr.selection, &condition, CONTEXT->condition_level);
                 CONTEXT->conditions[CONTEXT->condition_length++] = condition;
@@ -954,7 +945,7 @@ condition:
         	relation_attr_init(&left_attr, $1, $3);
 
         	Condition condition;
-                condition_init(&condition, CONTEXT->comp, 1, &left_attr, NULL, 0, NULL, NULL, NULL, $5, 0, 1);
+                condition_init(&condition, CONTEXT->comp[CONTEXT->condition_level], 1, &left_attr, NULL, 0, NULL, NULL, NULL, $5, 0, 1);
 
                 selects_append_condition(&CONTEXT->ssql->sstr.selection, &condition, CONTEXT->condition_level);
                 CONTEXT->conditions[CONTEXT->condition_length++] = condition;
@@ -964,7 +955,7 @@ condition:
 		Value *left_value = &CONTEXT->values[CONTEXT->value_length - 1];
 
 		Condition condition;
-                condition_init(&condition, CONTEXT->comp, 0, NULL, left_value, 0, NULL, NULL, NULL, $3, 0, 1);
+                condition_init(&condition, CONTEXT->comp[CONTEXT->condition_level], 0, NULL, left_value, 0, NULL, NULL, NULL, $3, 0, 1);
 
                 selects_append_condition(&CONTEXT->ssql->sstr.selection, &condition, CONTEXT->condition_level);
                 CONTEXT->conditions[CONTEXT->condition_length++] = condition;
@@ -975,7 +966,7 @@ condition:
                 relation_attr_init(&right_attr, NULL, $3);
 
                 Condition condition;
-                condition_init(&condition, CONTEXT->comp, 0, NULL, NULL, 1, &right_attr, NULL, $1, NULL, 1, 0);
+                condition_init(&condition, CONTEXT->comp[CONTEXT->condition_level], 0, NULL, NULL, 1, &right_attr, NULL, $1, NULL, 1, 0);
 
                 selects_append_condition(&CONTEXT->ssql->sstr.selection, &condition, CONTEXT->condition_level);
                 CONTEXT->conditions[CONTEXT->condition_length++] = condition;
@@ -986,7 +977,7 @@ condition:
                 relation_attr_init(&right_attr, $3, $5);
 
                 Condition condition;
-                condition_init(&condition, CONTEXT->comp, 0, NULL, NULL, 1, &right_attr, NULL, $1, NULL, 1, 0);
+                condition_init(&condition, CONTEXT->comp[CONTEXT->condition_level], 0, NULL, NULL, 1, &right_attr, NULL, $1, NULL, 1, 0);
 
                 selects_append_condition(&CONTEXT->ssql->sstr.selection, &condition, CONTEXT->condition_level);
                 CONTEXT->conditions[CONTEXT->condition_length++] = condition;
@@ -995,7 +986,7 @@ condition:
 		Value *right_value = &CONTEXT->values[CONTEXT->value_length - 1];
 
 		Condition condition;
-                condition_init(&condition, CONTEXT->comp, 0, NULL, NULL, 0, NULL, right_value, $1, NULL, 1, 0);
+                condition_init(&condition, CONTEXT->comp[CONTEXT->condition_level], 0, NULL, NULL, 0, NULL, right_value, $1, NULL, 1, 0);
 
                 selects_append_condition(&CONTEXT->ssql->sstr.selection, &condition, CONTEXT->condition_level);
                 CONTEXT->conditions[CONTEXT->condition_length++] = condition;
@@ -1004,7 +995,7 @@ condition:
 	| expression_cluster comOp expression_cluster
 	{
 		Condition condition;
-		condition_init(&condition, CONTEXT->comp, 0, NULL, NULL, 0, NULL, NULL, $1, $3, 1, 1);
+		condition_init(&condition, CONTEXT->comp[CONTEXT->condition_level], 0, NULL, NULL, 0, NULL, NULL, $1, $3, 1, 1);
 
 		selects_append_condition(&CONTEXT->ssql->sstr.selection, &condition, CONTEXT->condition_level);
                 CONTEXT->conditions[CONTEXT->condition_length++] = condition;
@@ -1012,7 +1003,7 @@ condition:
     ;
 
 expression_cluster:
-	LBRACE expression RBRACE
+	| LBRACE expression RBRACE
 	{
 		$$ = $2;
 	}
@@ -1028,8 +1019,7 @@ expression_cluster:
 		expression_init(exp,4,$1,$3);
 		$$ = exp;
 	}
-
-	| expression ADD expression
+	  expression ADD expression
 	{
 		Expression *exp = malloc(sizeof(Expression));
 		expression_init(exp,1,$1,$3);
@@ -1041,6 +1031,7 @@ expression_cluster:
 		expression_init(exp,2,$1,$3);
 		$$ = exp;
 	}
+
 	;
 expression:
 
