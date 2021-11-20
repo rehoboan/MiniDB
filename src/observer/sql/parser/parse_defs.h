@@ -324,7 +324,8 @@ void expression_init_attr(Expression *expr,RelAttr *attr);
 
 void condition_init(Condition *condition, CompOp comp,
                     int left_is_attr, RelAttr *left_attr, Value *left_value,
-                    int right_is_attr, RelAttr *right_attr, Value *right_value, Expression *left_expr,Expression *right_expr,
+                    int right_is_attr, RelAttr *right_attr, Value *right_value,
+                    Expression *left_expr,Expression *right_expr,
                     int left_is_expr, int right_is_expr
 );
 //void condition_init_expr(Condition *condition,Expression *left_expr,Expression *right_expr,CompOp comp);
