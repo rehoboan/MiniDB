@@ -158,6 +158,8 @@ typedef struct _Condition {
 typedef struct {
     size_t    attr_num;               // Length of attrs in Select clause
     RelAttr   attributes[MAX_NUM];    // attrs in Select clause
+    Expression expr_des[MAX_NUM];
+
     size_t    relation_num;           // Length of relations in From clause
     char *    relations[MAX_NUM];     // relations in From clause
     size_t    condition_num;          // Length of conditions in Where clause
@@ -166,8 +168,7 @@ typedef struct {
     OrderDescription order_des[MAX_NUM];
     GroupByDescription group_des[MAX_NUM];
     size_t    group_num;
-    Expression expr_des[MAX_NUM];
-    size_t    expr_num;
+
 }SubSelects;
 
 typedef struct {
@@ -341,7 +342,7 @@ void selects_append_condition(Selects *selects, Condition *condition, size_t sel
 //void selects_append_orders(Selects *selects, OrderDescription *order);
 void selects_append_orders(Selects *selects, OrderDescription orders[], size_t order_num, size_t select_num);
 void selects_append_groups(Selects *selects, GroupByDescription groups[], size_t group_num, size_t select_num);
-void selects_append_expression(Selects *selects, Expression expressions[], size_t select_num);
+void selects_append_expression(Selects *selects, Expression *expressions, size_t select_num);
 void selects_destroy(Selects *selects);
 
 void inserts_init(Inserts *inserts, const char *relation_name, Value values[], size_t value_num, const int row_end[], size_t row_num);

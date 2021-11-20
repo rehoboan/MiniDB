@@ -365,7 +365,7 @@ void selects_append_groups(Selects *selects, GroupByDescription groups[], size_t
 
 void selects_append_expression(Selects *selects, Expression *expressions, size_t select_num){
   SubSelects &subselect = selects->subselects[select_num];
-  subselect.expr_des[subselect.expr_num++] = *expressions;
+  subselect.expr_des[subselect.attr_num++] = *expressions;
 }
 
 void selects_destroy(Selects *selects) {
