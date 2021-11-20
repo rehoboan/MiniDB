@@ -285,6 +285,8 @@ void value_init_date(Value *value, const char *v);
 void value_init_subselect(Value *value);
 void value_destroy(Value *value);
 
+void switch_comp(CompOp *comp);
+
 void condition_init(Condition *condition, CompOp comp, int left_is_attr, RelAttr *left_attr, Value *left_value,
                     int right_is_attr, RelAttr *right_attr, Value *right_value);
 void condition_destroy(Condition *condition);

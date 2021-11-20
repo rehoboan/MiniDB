@@ -201,6 +201,25 @@ void value_destroy(Value *value) {
   value->num = 0;
 }
 
+void switch_comp(CompOp *comp){
+  switch (*comp) {
+    case LESS_THAN:
+      *comp = GREAT_THAN;
+      break;
+    case GREAT_THAN:
+     *comp = LESS_THAN;
+     break;
+    case LESS_EQUAL:
+      *comp = GREAT_EQUAL;
+      break;
+    case GREAT_EQUAL:
+      *comp = LESS_EQUAL;
+      break;
+    default:
+      break;
+  }
+}
+
 
 void condition_init(Condition *condition, CompOp comp, 
                     int left_is_attr, RelAttr *left_attr, Value *left_value,
