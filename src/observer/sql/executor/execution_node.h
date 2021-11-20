@@ -114,4 +114,17 @@ private:
 
 };
 
+// class ExprExeNode {
+// public:
+//   RC init();
+//   RC execute();
+
+// private:
+//   bool calculate(v1, op, v2);
+// private:
+//   const TupleSet *table_;
+//   const Expression &expr_;
+//   expr_attr_infos_
+// }
+
 #endif //__OBSERVER_SQL_EXECUTOR_EXECUTION_NODE_H_

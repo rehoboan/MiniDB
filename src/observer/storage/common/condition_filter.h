@@ -41,13 +41,21 @@ struct ConDesc {
     int attr_type;
     int index;
     int value_num;
+    bool is_expr;
+    Expression *expr;
 };
+
+struct ExprAttrDesc {
+  int attr_type;
+  int attr_offset;
+}
 
 void modify_return_value(int type, ReturnValue &ret, const char *data);
 int compare_data(int left_type, const char *left_data, int right_type, const char *right_data);
 int in_op(int left_type, const char *left_data, int right_type, void *right_data_head, size_t right_data_num);
 const ReturnValue switch_data_type(int source_type, int target_type, const char *data);
 std::string time_t_to_str(std::time_t time);
+
 class ConditionFilter {
 public:
 
@@ -73,12 +81,14 @@ public:
 //    RC init(const ConDesc &left, const ConDesc &right, AttrType attr_type, CompOp comp_op);
     RC init(const ConDesc &left, const ConDesc &right, int left_attr_type, int right_attr_type, CompOp comp_op);
     RC init(Table &table, const Condition &condition);
+    bool expr_init(Table &table, Expression *expr, int &idx);
 
 
   bool filter(const Record &rec) const override;
   bool filter(const Tuple &tuple, const TupleSchema &tuple_schema) const override {return false;}
   bool filter(const Tuple &left_tuple, const TupleSchema &left_schema,
                       const Tuple &right_tuple, const TupleSchema &right_schema) const override {return false;}
+  void calculate_expr(Expression *expr, Record &rec, int &idx, bool is_left);
 
 
 public:
@@ -100,6 +110,9 @@ private:
 //    AttrType attr_type_ = UNDEFINED;
     int left_attr_type_{};
     int right_attr_type_{};
+
+    ExprAttrDesc left_expr_attr_desc[MAX_SELECTS_NUM];
+    ExprAttrDesc right_expr_attr_desc[MAX_SELECTS_NUM];
     CompOp   comp_op_ = NO_OP;
 
 
