@@ -1072,8 +1072,8 @@ primary_expression:
 		Expression *exp = malloc(sizeof(Expression));
 		expression_init_attr(exp,&attr);
 		$$ = exp;
-      	}
-    	| ID DOT ID{
+    }
+    | ID DOT ID{
 		RelAttr attr;
 		relation_attr_init(&attr, $3, $1);
 		Expression *exp = malloc(sizeof(Expression));
