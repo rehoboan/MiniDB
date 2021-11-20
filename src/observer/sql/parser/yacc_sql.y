@@ -1043,7 +1043,13 @@ expression_cluster:
 	}
 	;
 expression:
-	primary_expression{
+
+
+	expression_cluster
+	{
+		$$ = $1;
+	}
+	|primary_expression{
 		$$ = $1;
 	}
 	;
