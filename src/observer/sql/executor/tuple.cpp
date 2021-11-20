@@ -60,7 +60,7 @@ void Tuple::add(const char *s, int len) {
   add(new StringValue(s, len));
 }
 
-void Tuple::add(time_t value){
+void Tuple::add(std::time_t value){
   add(new DateValue(value));
 }
 

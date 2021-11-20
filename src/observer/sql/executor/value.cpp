@@ -34,7 +34,7 @@ void modify_return_value(int type, ReturnValue &ret, const char *data){
   }
 }
 
-std::string time_t_to_str(time_t time){
+std::string time_t_to_str(std::time_t time){
     tm *tm_ = localtime(&time);
     int year, month, day;
     year = tm_->tm_year + 1900;
@@ -313,12 +313,12 @@ bool StringValue::is_null() const {
 
 
 
-DateValue::DateValue(time_t value){
+DateValue::DateValue(std::time_t value){
     type_ = DATES;
     value_ = time_t_to_str(value);
 }
 
-time_t DateValue::str_to_time_t(const std::string *str) {
+std::time_t DateValue::str_to_time_t(const std::string *str) {
     const char *s = str->c_str();
     tm tm_{};
     int year, month, day;
@@ -331,12 +331,12 @@ time_t DateValue::str_to_time_t(const std::string *str) {
     tm_.tm_min = 0;
     tm_.tm_sec = 0;
     tm_.tm_isdst = 0;
-    time_t t_ = mktime(&tm_);
+    std::time_t t_ = mktime(&tm_);
 
     return t_;
 }
 
-std::string DateValue::time_t_to_str(time_t time) {
+std::string DateValue::time_t_to_str(std::time_t time) {
     tm *tm_ = localtime(&time);
     int year, month, day;
     year = tm_->tm_year + 1900;
@@ -364,7 +364,7 @@ void DateValue::set_value(std::string &value){
 
 }
 
-void DateValue::set_value(time_t &value){
+void DateValue::set_value(std::time_t &value){
     value_ = time_t_to_str(value);
     is_null_ = false;
 
@@ -381,7 +381,7 @@ int DateValue::get_type() const {
     return type_;
 }
 
-time_t DateValue::get_value_time_t() const{
+std::time_t DateValue::get_value_time_t() const{
 
     if(is_null_){
         return -1;
@@ -400,8 +400,8 @@ int DateValue::compare(const TupleValue &other) const  {
         return -1;
     }
     int cmp = 0;
-    time_t val = str_to_time_t(&value_);
-    time_t other_val = str_to_time_t((std::string *)other.get_value());
+    std::time_t val = str_to_time_t(&value_);
+    std::time_t other_val = str_to_time_t((std::string *)other.get_value());
     if(val > other_val){
         cmp = 1;
     }

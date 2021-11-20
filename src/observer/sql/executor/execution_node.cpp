@@ -408,7 +408,7 @@ RC AggregationExeNode::max(const TupleValue &value, AggValue &res) {
       }
       break;
       case DATES:{
-        time_t value_time = ((const DateValue&)value).get_value_time_t();
+        std::time_t value_time = ((const DateValue&)value).get_value_time_t();
         if(is_init){
           if(value_time > res.values.date_value) {
             res.values.date_value = value_time;
@@ -465,7 +465,7 @@ RC AggregationExeNode::min(const TupleValue &value, AggValue &res) {
       }
       break;
       case DATES:{
-        time_t value_time = ((const DateValue&)value).get_value_time_t();
+        std::time_t value_time = ((const DateValue&)value).get_value_time_t();
         if(is_init){
           if(value_time < res.values.date_value) {
             res.values.date_value = value_time;
@@ -522,7 +522,7 @@ RC AggregationExeNode::avg(const TupleValue &value, AggValue &res, int size){
       }
       break;
       case DATES:{
-        time_t value_time = ((const DateValue&)value).get_value_time_t();
+        std::time_t value_time = ((const DateValue&)value).get_value_time_t();
         if(is_init){
           res.values.date_value = (res.values.date_value * (size-1) + value_time) / size;
         } else {

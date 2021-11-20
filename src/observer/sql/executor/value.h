@@ -123,7 +123,7 @@ class DateValue : public TupleValue{
 public:
     explicit DateValue(const char *value, int len) : value_(value, len), type_(DATES){
     }
-    explicit DateValue(time_t value);
+    explicit DateValue(std::time_t value);
 
     explicit DateValue() : value_("NULL", 4), type_(DATES), is_null_(true) {
     }
@@ -131,9 +131,9 @@ public:
     void to_string(std::ostream &os) const override;
 
     void set_value(std::string &value);
-    void set_value(time_t &value);
+    void set_value(std::time_t &value);
 
-    time_t get_value_time_t() const;
+    std::time_t get_value_time_t() const;
     const void *get_value() const override;
 
 
@@ -144,8 +144,8 @@ public:
     bool is_null() const override;
 
 private:
-    static time_t str_to_time_t(const std::string *str) ;
-    static std::string time_t_to_str(time_t time) ;
+    static std::time_t str_to_time_t(const std::string *str) ;
+    static std::string time_t_to_str(std::time_t time) ;
 private:
     std::string value_;
 

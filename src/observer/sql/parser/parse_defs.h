@@ -46,7 +46,6 @@ See the Mulan PSL v2 for more details. */
 #include <stddef.h>
 #include <stdbool.h>
 
-
 //属性结构体
 typedef struct {
   char *relation_name;   // relation name (may be NULL) 表名

@@ -47,7 +47,7 @@ public:
   void add(float value);
   void add();
   void add(const char *s, int len);
-  void add(time_t value);
+  void add(std::time_t value);
 
   const std::vector<std::shared_ptr<TupleValue>> &values() const {
     return values_;
