@@ -47,7 +47,6 @@ void son_query() {
 
 void update_select_num(Selects *selects) {
   selects->select_num++;
-  printf("***************update select num:%d\n", selects->select_num);
 }
 
 void relation_attr_init(RelAttr *relation_attr, const char *relation_name, const char *attribute_name) {
@@ -118,6 +117,7 @@ void value_init_string(Value *value, const char *v) {
 }
 
 void value_init_date(Value *value, const char *v) {
+    value->num= 1;
 
     int days[12]={31,28,31,30,31,30,31,31,30,31,30,31};
 
@@ -157,7 +157,6 @@ void value_init_date(Value *value, const char *v) {
         }
         record[i] = '\0';
     }
-    value->num= 1;
 }
 
 void value_init_subselect(Value *value) {
@@ -225,7 +224,6 @@ void condition_init(Condition *condition, CompOp comp,
                     int left_is_attr, RelAttr *left_attr, Value *left_value,
                     int right_is_attr, RelAttr *right_attr, Value *right_value) {
   condition->comp = comp;
-  printf("@@@@@@@@@CONDITION INIT@@@@@@@@@+%d\n", condition->comp);
   condition->left_is_attr = left_is_attr;
   if (left_is_attr) {
     condition->left_attr = *left_attr;
@@ -239,6 +237,7 @@ void condition_init(Condition *condition, CompOp comp,
   } else {
     condition->right_value = *right_value;
   }
+  printf("condition->right_value.num%d\n", condition->right_value.num);
 }
 void condition_destroy(Condition *condition) {
   if (condition->left_is_attr) {
@@ -281,10 +280,8 @@ void attr_info_destroy(AttrInfo *attr_info) {
 
 void selects_init(Selects *selects, ...);
 void selects_append_attribute(Selects *selects, RelAttr *rel_attr, size_t select_num) {
-  printf("select_num:%d\n", select_num);
   SubSelects &subselect = selects->subselects[select_num];
   subselect.attributes[subselect.attr_num++] = *rel_attr;
-  printf("out of selects_append_attribute func\n");
 }
 void selects_append_relation(Selects *selects, const char *relation_name, size_t select_num) {
   std::cout<<"select_num   "<<select_num<<std::endl;
@@ -306,7 +303,6 @@ void selects_append_conditions(Selects *selects, Condition conditions[], size_t 
 void selects_append_condition(Selects *selects, Condition *condition, size_t select_num) {
   SubSelects &subselect = selects->subselects[select_num];
   subselect.conditions[subselect.condition_num++] = *condition;
-  printf("@@@@@@@@@APPEND CONDITION@@@@@@@@@+%d\n", condition->comp);
 }
 
 void selects_append_orders(Selects *selects, OrderDescription orders[], size_t order_num, size_t select_num){
