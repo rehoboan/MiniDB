@@ -659,6 +659,7 @@ RC ExecuteStage::do_select_recur(const char *db, Selects &selects, size_t &idx, 
         return RC::MISUSE;
       }
       //现在condition 的right value的type还是SUBSELECT，修改value的type和num
+
       condition.right_value.type = type;
       condition.right_value.num = size;
       std::cout<<"****************value type"<<type<<std::endl;
