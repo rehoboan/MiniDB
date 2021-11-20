@@ -230,28 +230,36 @@ void value_destroy(Value *value) {
 
 void condition_init(Condition *condition, CompOp comp, 
                     int left_is_attr, RelAttr *left_attr, Value *left_value,
-                    int right_is_attr, RelAttr *right_attr, Value *right_value) {
+                    int right_is_attr, RelAttr *right_attr, Value *right_value, Expression *left_expr,Expression *right_expr,
+                    int left_is_expr, int right_is_expr
+                    ) {
   condition->comp = comp;
   condition->left_is_attr = left_is_attr;
+  condition->left_is_expr = left_is_expr;
   if (left_is_attr) {
     condition->left_attr = *left_attr;
-  } else {
+  }else if (left_is_expr){
+    condition->left_expr = left_expr;
+  }else {
     condition->left_value = *left_value;
   }
-
   condition->right_is_attr = right_is_attr;
+  condition->right_is_attr = right_is_expr;
   if (right_is_attr) {
     condition->right_attr = *right_attr;
-  } else {
+  }else if(right_is_expr){
+    condition->right_expr = right_expr;
+  }else {
     condition->right_value = *right_value;
   }
 }
-void condition_init_expr(Condition *condition,Expression *left_expr,Expression *right_expr,CompOp comp){
-  condition->comp = comp;
-  condition->left_expr = left_expr;
-  condition->right_expr = right_expr;
-//  condition->left_is_expr = 1;
-}
+
+//void condition_init_expr(Condition *condition,,CompOp comp){
+//  condition->comp = comp;
+//  condition->left_expr = left_expr;
+//  condition->right_expr = right_expr;
+////  condition->left_is_expr = 1;
+//}
 
 
 void condition_destroy(Condition *condition) {
