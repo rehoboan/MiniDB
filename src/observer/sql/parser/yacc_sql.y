@@ -926,6 +926,18 @@ condition:
 		selects_append_condition(&CONTEXT->ssql->sstr.selection, &condition, CONTEXT->condition_level);
 		CONTEXT->conditions[CONTEXT->condition_length++] = condition;
 	}
+	| subselect comOp ID DOT ID
+	{
+		RelAttr left_attr;
+		relation_attr_init(&left_attr, $3, $5);
+
+		value_init_subselect(&CONTEXT->values[CONTEXT->value_length++]);
+		switch_comp(&CONTEXT->comp[CONTEXT->condition_level]);
+		Condition condition;
+		condition_init(&condition, CONTEXT->comp[CONTEXT->condition_level], 1, &left_attr, NULL, 0, NULL, &(CONTEXT->values[CONTEXT->value_length - 1]), NULL, NULL, 0, 0);
+		selects_append_condition(&CONTEXT->ssql->sstr.selection, &condition, CONTEXT->condition_level);
+		CONTEXT->conditions[CONTEXT->condition_length++] = condition;
+	}
 	| ID comOp expression_cluster{
 		RelAttr left_attr;
 		relation_attr_init(&left_attr, NULL, $1);
@@ -1015,21 +1027,8 @@ expression_cluster:
 		expression_init(exp,4,$1,$3);
 		$$ = exp;
 	}
-	| subselect comOp ID DOT ID
-	{
-		RelAttr left_attr;
-		relation_attr_init(&left_attr, $3, $5);
 
-		value_init_subselect(&CONTEXT->values[CONTEXT->value_length++]);
-		switch_comp(&CONTEXT->comp[CONTEXT->condition_level]);
-		Condition condition;
-		condition_init(&condition, CONTEXT->comp[CONTEXT->condition_level], 1, &left_attr, NULL, 0, NULL, &(CONTEXT->values[CONTEXT->value_length - 1]), NULL, NULL, 0, 0);
-		selects_append_condition(&CONTEXT->ssql->sstr.selection, &condition, CONTEXT->condition_level);
-		CONTEXT->conditions[CONTEXT->condition_length++] = condition;
-		}
-		;
-	|
-	expression ADD expression
+	| expression ADD expression
 	{
 		Expression *exp = malloc(sizeof(Expression));
 		expression_init(exp,1,$1,$3);
@@ -1041,7 +1040,7 @@ expression_cluster:
 		expression_init(exp,2,$1,$3);
 		$$ = exp;
 	}
-
+	;
 expression:
 	primary_expression{
 		$$ = $1;
