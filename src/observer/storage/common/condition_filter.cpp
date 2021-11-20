@@ -98,7 +98,9 @@ RC DefaultConditionFilter::init(Table &table, const Condition &condition)
     left.value_num = 0;
 
     type_left = field_left->type();
-  } else {
+  } else if(1 == condition.left_is_expr) {
+    expr_init(Table &table, condition.left_expr, -1, true);
+  }else {
     left.is_attr = false;
     left.value = condition.left_value.data; // 校验type 或者转换类型
     left.attr_type = condition.left_value.type;
@@ -119,7 +121,9 @@ RC DefaultConditionFilter::init(Table &table, const Condition &condition)
     right.attr_type = field_right->type();
     right.value = nullptr;
     right.value_num = 0;
-  } else {
+  } else if(1 == condition.right_is_expr) {
+      expr_init(Table &table, condition.right_expr, -1, false);
+  }else {
     right.is_attr = false;
     right.value = condition.right_value.data;
     right.value_num = condition.right_value.num;
@@ -130,12 +134,8 @@ RC DefaultConditionFilter::init(Table &table, const Condition &condition)
     right.attr_length = 0;
     right.attr_offset = 0;
   }
-  std::cout<<"type_left"<<type_left<<std::endl;
-  std::cout<<"type_right"<<type_right<<std::endl;
-  std::cout<<"type mismatch?"<<std::endl;
 
   if (!field_type_compare_compatible_table[TYPE(type_left)][TYPE(type_right)]) {
-    std::cout<<"************can not compare***********"<<std::endl;
     LOG_WARN("Can not compare. %d and %d", type_left, type_right);
     return RC::SCHEMA_FIELD_TYPE_MISMATCH;
   } else if((condition.comp==OP_IN || condition.comp==OP_NOT_IN)) {
@@ -154,6 +154,28 @@ RC DefaultConditionFilter::init(Table &table, const Condition &condition)
   comp_op_ = condition.comp;
   return RC::SUCCESS;
 //  return init(left, right, static_cast<AttrType>(type_left), condition.comp);
+}
+
+bool expr_init(Table &table, Expression *expr, int &idx, bool is_left) {
+  if(1 == expr->is_attr) {
+    idx++;
+    TableMeta &table_meta = table.table_meta();
+    const FieldMeta *field = table_meta.field(expr->attr.attribute_name);
+    if (nullptr == field) {
+      LOG_WARN("No such field in condition. %s.%s", table.name(), expr->attr.attribute_name);
+      return false;
+    }
+    if(is_left) {
+      left_expr_attr_desc[i].attr_offset = field->offset();
+      left_expr_attr_desc[i].attr_type = field->type();
+    } else {
+      right_expr_attr_desc[i].attr_offset = field->offset();
+      right_expr_attr_desc[i].attr_type = field->type();      
+    }
+    return true;
+  } else if(1 == expr->is_operator){
+    return expr_init(table, expr->left_expr, idx, if_left) && expr_init(table, expr->right_expr, idx, is_left);
+  }
 }
 
 //int sign(double l, double r){
@@ -219,7 +241,11 @@ bool DefaultConditionFilter::filter(const Record &rec) const
       rid.slot_num = *(int*)(left_value+4);
       tmp = sys_tbs->getText(rid);
       left_value = tmp.c_str();
-    }} else {
+    } 
+  } else if (left_.is_expr) {
+      //todo calculate
+      left_value = (const char *)calculate_expr(left_.expr, rec, -1, true);
+  } else {
     left_value = (char *)left_.value;
     left_null = (left_attr_type_ == NULL_VALUE);
   }
@@ -236,7 +262,11 @@ bool DefaultConditionFilter::filter(const Record &rec) const
       std::string tmp_ = sys_tbs->getText(rid);
       right_value = tmp_.c_str();
     }
-  }else {
+  } else if (right_.is_expr) {
+    //todo calculate
+    right_value = (const char *)calculate_expr(right_.expr, rec, -1, false);
+
+  } else {
     //这里即使油表为值，也仍然有可能为空
     if(right_.value_num == 0 && comp_op_ < OP_NOT_IN) {
       //直接返回false
@@ -262,6 +292,23 @@ bool DefaultConditionFilter::filter(const Record &rec) const
   }
 
   return compare_res_with_op(comp_op_, res, left_null || right_null);
+}
+
+float DefaultConditionFilter::calculate_expr(Expression *expr, Recore *rec, int &idx， bool is_left) {
+  if(expr->is_value) {
+    return switch_data_type(expr->value.type, FLOATS, (const char *)expr->value.data);
+  } else if(expr->is_attr) {
+    idx++;
+    const ExprAttrDesc & desc = (if_left) ? left_expr_attr_desc[idx] : right_expr_attr_desc[idx];
+    int offset = desc.attr_offset
+    return (float *)(rec.data + offset);
+  } else {
+    float v1 = calculate_expr(expr->left_expr, rec, idx, is_left);
+    float v2 = calculate_expr(expr->right_expr, rec, idx, is_left);
+    float res = 0;
+    if(calculate(v1,expr->operator_type, v2, res))
+      return res;
+  }
 }
 
 
@@ -426,3 +473,21 @@ bool CompositeConditionFilter::filter(const Tuple &left_tuple, const TupleSchema
 
 
 
+
+bool calculate(float v1, OperatorType operator_type, float v2, float& res) {
+  bool ok = true;
+  switch (operator_type){
+    case kOpPlus:
+      res = v1+v2;
+    case kOpMinus:
+      res = v1-v2;
+    case kOpAsterisk:
+      res = v1*v2;
+    case kOpSlash:
+      res = v1 / v2;
+    default:
+      ok = false;
+      break;
+  };
+  return ok;
+}
