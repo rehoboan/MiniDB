@@ -121,7 +121,7 @@ void relation_attr_destroy(RelAttr *relation_attr) {
 void value_init_null(Value *value){
     value->type = UNDEFINED | NULL_VALUE;
     value->data = malloc(sizeof(int));
-    value->num = 0;
+    value->num = 1;
 }
 
 void value_init_integer(Value *value, int v) {
