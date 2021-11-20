@@ -881,7 +881,7 @@ condition:
 
 		value_init_subselect(&CONTEXT->values[CONTEXT->value_length++]);
 		Condition condition;
-		condition_init(&condition, CONTEXT->comp, 1, &left_attr, NULL, 0, NULL, &CONTEXT->values[CONTEXT->value_length - 1]);
+		condition_init(&condition, CONTEXT->comp, 1, &left_attr, NULL, 0, NULL, &(CONTEXT->values[CONTEXT->value_length - 1]));
 		selects_append_condition(&CONTEXT->ssql->sstr.selection, &condition, CONTEXT->condition_level);
 		CONTEXT->conditions[CONTEXT->condition_length++] = condition;
 
@@ -895,7 +895,7 @@ condition:
 
 		value_init_subselect(&CONTEXT->values[CONTEXT->value_length++]);
 		Condition condition;
-		condition_init(&condition, CONTEXT->comp, 1, &left_attr, NULL, 0, NULL, &CONTEXT->values[CONTEXT->value_length - 1]);
+		condition_init(&condition, CONTEXT->comp, 1, &left_attr, NULL, 0, NULL, &(CONTEXT->values[CONTEXT->value_length - 1]));
 		selects_append_condition(&CONTEXT->ssql->sstr.selection, &condition, CONTEXT->condition_level);
 		CONTEXT->conditions[CONTEXT->condition_length++] = condition;
 	}
