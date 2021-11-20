@@ -306,7 +306,7 @@ void selects_append_groups(Selects *selects, GroupByDescription groups[], size_t
 
 void selects_destroy(Selects *selects) {
   //size_t select_num = selects->select_num;
-  for(auto &subselect : selects->subselects) {
+  for(auto subselect : selects->subselects) {
     for(size_t i = 0; i < subselect.attr_num; i++) {
       relation_attr_destroy(&subselect.attributes[i]);
     }
