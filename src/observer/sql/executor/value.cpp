@@ -169,8 +169,11 @@ int compare_data(int left_type, const char *left_data, int right_type, const cha
 
 
 int in_op(int left_type, const char *left_data, int right_type, void *right_data_head, size_t right_data_num) {
+  printf("get in in_op function\n");
+  
   int res = 0;
-  if(right_data_head == nullptr) {
+  if(right_data_num == 0) {
+    printf("get in in_op function and null value\n");
     //为空，则not in为true
     return res;
   }

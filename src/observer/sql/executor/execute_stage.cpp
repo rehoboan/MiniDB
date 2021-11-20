@@ -722,6 +722,7 @@ RC ExecuteStage::do_select_recur(const char *db, Selects &selects, size_t &idx, 
       } else {
         //返回空表
         std::cout<<"^^^^^^Return empty table^^^^^^^^^^^"<<std::endl;
+        std::cout<<"((((((((((condition_comp"<<condition.comp<<std::endl;
         condition.right_value.data = nullptr;
         condition.right_value.num = 0;
         condition.right_value.type = UNDEFINED;

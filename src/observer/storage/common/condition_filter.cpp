@@ -122,6 +122,7 @@ RC DefaultConditionFilter::init(Table &table, const Condition &condition)
     right.is_attr = false;
     right.value = condition.right_value.data;
     right.value_num = condition.right_value.num;
+    std::cout<<"condition.right_value.num:"<<right.value_num<<std::endl;
     //子查询返回空表，在这里给空value的类型赋值
     type_right = (right.value_num) ? condition.right_value.type : type_left;
     right.attr_type = condition.right_value.type;
@@ -217,6 +218,7 @@ bool DefaultConditionFilter::filter(const Record &rec) const
     left_value = (char *)left_.value;
     left_null = (left_attr_type_ == NULL_VALUE);
   }
+  std::cout<<"get in filter function"<<std::endl;
   if (right_.is_attr) {
     right_value = (char *)(rec.data + right_.attr_offset);
     char * data = rec.data;
@@ -234,19 +236,25 @@ bool DefaultConditionFilter::filter(const Record &rec) const
     //这里即使油表为值，也仍然有可能为空
     if(right_.value_num == 0 && comp_op_ < OP_NOT_IN) {
       //直接返回false
+      std::cout<<"1"<<std::endl;
+      std::cout<<"comp_op_"<<comp_op_<<std::endl;
       return false;
     }else if(comp_op_ < OP_IN) {
       right_value = (char *)right_.value;
+      std::cout<<"2"<<std::endl;
     }
     right_null = (right_attr_type_ == NULL_VALUE);
+    std::cout<<"right value null?"<<right_null<<std::endl;
   }
   int res;
   if(left_null || right_null){
     res = (left_null ^ right_null);
+    std::cout<<"3"<<std::endl;
   }else{
     if(comp_op_ < OP_IN) {
       res = compare_data(TYPE(left_type), left_value,
-                        TYPE(right_type),right_value);      
+                        TYPE(right_type),right_value);
+      std::cout<<"4"<<std::endl;      
     } else if(comp_op_ == OP_IN || comp_op_== OP_NOT_IN) {
       //todo 在这里执行in操作，in允许int 和float之间比较
       //assert(left_type == right_type);

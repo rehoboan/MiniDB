@@ -97,7 +97,7 @@ typedef struct ParserContext {
   int index_field_num;
 
   Condition conditions[MAX_NUM];
-  CompOp comp;
+  CompOp comp[MAX_SELECTS_NUM];
   char id[MAX_NUM];
 
   size_t    order_num;
@@ -2247,7 +2247,7 @@ yyreduce:
 			Value *right_value = &(CONTEXT->values[CONTEXT->value_length - 1]);
 
 			Condition condition;
-			condition_init(&condition, CONTEXT->comp, 1, &left_attr, NULL, 0, NULL, right_value);
+			condition_init(&condition, CONTEXT->comp[CONTEXT->condition_level], 1, &left_attr, NULL, 0, NULL, right_value);
 			selects_append_condition(&CONTEXT->ssql->sstr.selection, &condition, CONTEXT->condition_level);
 			CONTEXT->conditions[CONTEXT->condition_length++] = condition;
 			// $$ = ( Condition *)malloc(sizeof( Condition));
@@ -2271,7 +2271,7 @@ yyreduce:
 			Value *right_value = &CONTEXT->values[CONTEXT->value_length - 1];
 
 			Condition condition;
-			condition_init(&condition, CONTEXT->comp, 0, NULL, left_value, 0, NULL, right_value);
+			condition_init(&condition, CONTEXT->comp[CONTEXT->condition_level], 0, NULL, left_value, 0, NULL, right_value);
 			selects_append_condition(&CONTEXT->ssql->sstr.selection, &condition, CONTEXT->condition_level);
 			CONTEXT->conditions[CONTEXT->condition_length++] = condition;
 			// $$ = ( Condition *)malloc(sizeof( Condition));
@@ -2298,7 +2298,7 @@ yyreduce:
 			relation_attr_init(&right_attr, NULL, (yyvsp[0].string));
 
 			Condition condition;
-			condition_init(&condition, CONTEXT->comp, 1, &left_attr, NULL, 1, &right_attr, NULL);
+			condition_init(&condition, CONTEXT->comp[CONTEXT->condition_level], 1, &left_attr, NULL, 1, &right_attr, NULL);
 			selects_append_condition(&CONTEXT->ssql->sstr.selection, &condition, CONTEXT->condition_level);
 			CONTEXT->conditions[CONTEXT->condition_length++] = condition;
 			// $$=( Condition *)malloc(sizeof( Condition));
@@ -2322,7 +2322,7 @@ yyreduce:
 			relation_attr_init(&right_attr, NULL, (yyvsp[0].string));
 
 			Condition condition;
-			condition_init(&condition, CONTEXT->comp, 0, NULL, left_value, 1, &right_attr, NULL);
+			condition_init(&condition, CONTEXT->comp[CONTEXT->condition_level], 0, NULL, left_value, 1, &right_attr, NULL);
 			selects_append_condition(&CONTEXT->ssql->sstr.selection, &condition, CONTEXT->condition_level);
 			CONTEXT->conditions[CONTEXT->condition_length++] = condition;
 
@@ -2349,7 +2349,7 @@ yyreduce:
 			Value *right_value = &CONTEXT->values[CONTEXT->value_length - 1];
 
 			Condition condition;
-			condition_init(&condition, CONTEXT->comp, 1, &left_attr, NULL, 0, NULL, right_value);
+			condition_init(&condition, CONTEXT->comp[CONTEXT->condition_level], 1, &left_attr, NULL, 0, NULL, right_value);
 			selects_append_condition(&CONTEXT->ssql->sstr.selection, &condition, CONTEXT->condition_level);
 			CONTEXT->conditions[CONTEXT->condition_length++] = condition;
 
@@ -2376,7 +2376,7 @@ yyreduce:
 			relation_attr_init(&right_attr, (yyvsp[-2].string), (yyvsp[0].string));
 
 			Condition condition;
-			condition_init(&condition, CONTEXT->comp, 0, NULL, left_value, 1, &right_attr, NULL);
+			condition_init(&condition, CONTEXT->comp[CONTEXT->condition_level], 0, NULL, left_value, 1, &right_attr, NULL);
 			selects_append_condition(&CONTEXT->ssql->sstr.selection, &condition, CONTEXT->condition_level);
 			CONTEXT->conditions[CONTEXT->condition_length++] = condition;
 			// $$=( Condition *)malloc(sizeof( Condition));
@@ -2402,7 +2402,7 @@ yyreduce:
 			relation_attr_init(&right_attr, (yyvsp[-2].string), (yyvsp[0].string));
 
 			Condition condition;
-			condition_init(&condition, CONTEXT->comp, 1, &left_attr, NULL, 1, &right_attr, NULL);
+			condition_init(&condition, CONTEXT->comp[CONTEXT->condition_level], 1, &left_attr, NULL, 1, &right_attr, NULL);
 			selects_append_condition(&CONTEXT->ssql->sstr.selection, &condition, CONTEXT->condition_level);
 			CONTEXT->conditions[CONTEXT->condition_length++] = condition;
 			// $$=( Condition *)malloc(sizeof( Condition));
@@ -2425,7 +2425,7 @@ yyreduce:
 
 		value_init_subselect(&CONTEXT->values[CONTEXT->value_length++]);
 		Condition condition;
-		condition_init(&condition, CONTEXT->comp, 1, &left_attr, NULL, 0, NULL, &(CONTEXT->values[CONTEXT->value_length - 1]));
+		condition_init(&condition, CONTEXT->comp[CONTEXT->condition_level], 1, &left_attr, NULL, 0, NULL, &(CONTEXT->values[CONTEXT->value_length - 1]));
 		selects_append_condition(&CONTEXT->ssql->sstr.selection, &condition, CONTEXT->condition_level);
 		CONTEXT->conditions[CONTEXT->condition_length++] = condition;
 
@@ -2443,7 +2443,7 @@ yyreduce:
 
 		value_init_subselect(&CONTEXT->values[CONTEXT->value_length++]);
 		Condition condition;
-		condition_init(&condition, CONTEXT->comp, 1, &left_attr, NULL, 0, NULL, &(CONTEXT->values[CONTEXT->value_length - 1]));
+		condition_init(&condition, CONTEXT->comp[CONTEXT->condition_level], 1, &left_attr, NULL, 0, NULL, &(CONTEXT->values[CONTEXT->value_length - 1]));
 		selects_append_condition(&CONTEXT->ssql->sstr.selection, &condition, CONTEXT->condition_level);
 		CONTEXT->conditions[CONTEXT->condition_length++] = condition;
 	}
@@ -2457,9 +2457,9 @@ yyreduce:
 		relation_attr_init(&left_attr, NULL, (yyvsp[0].string));
 
 		value_init_subselect(&CONTEXT->values[CONTEXT->value_length++]);
-		switch_comp(&CONTEXT->comp);
+		switch_comp(&CONTEXT->comp[CONTEXT->condition_level]);
 		Condition condition;
-		condition_init(&condition, CONTEXT->comp, 1, &left_attr, NULL, 0, NULL, &(CONTEXT->values[CONTEXT->value_length - 1]));
+		condition_init(&condition, CONTEXT->comp[CONTEXT->condition_level], 1, &left_attr, NULL, 0, NULL, &(CONTEXT->values[CONTEXT->value_length - 1]));
 		selects_append_condition(&CONTEXT->ssql->sstr.selection, &condition, CONTEXT->condition_level);
 		CONTEXT->conditions[CONTEXT->condition_length++] = condition;
 	}
@@ -2473,9 +2473,9 @@ yyreduce:
 		relation_attr_init(&left_attr, (yyvsp[-2].string), (yyvsp[0].string));
 
 		value_init_subselect(&CONTEXT->values[CONTEXT->value_length++]);
-		switch_comp(&CONTEXT->comp);
+		switch_comp(&CONTEXT->comp[CONTEXT->condition_level]);
 		Condition condition;
-		condition_init(&condition, CONTEXT->comp, 1, &left_attr, NULL, 0, NULL, &(CONTEXT->values[CONTEXT->value_length - 1]));
+		condition_init(&condition, CONTEXT->comp[CONTEXT->condition_level], 1, &left_attr, NULL, 0, NULL, &(CONTEXT->values[CONTEXT->value_length - 1]));
 		selects_append_condition(&CONTEXT->ssql->sstr.selection, &condition, CONTEXT->condition_level);
 		CONTEXT->conditions[CONTEXT->condition_length++] = condition;
 	}
@@ -2484,61 +2484,61 @@ yyreduce:
 
   case 133: /* comOp: EQ  */
 #line 928 "yacc_sql.y"
-         { CONTEXT->comp = EQUAL_TO; }
+         { CONTEXT->comp[CONTEXT->condition_level] = EQUAL_TO; }
 #line 2489 "yacc_sql.tab.c"
     break;
 
   case 134: /* comOp: LT  */
 #line 929 "yacc_sql.y"
-         { CONTEXT->comp = LESS_THAN; }
+         { CONTEXT->comp[CONTEXT->condition_level] = LESS_THAN; }
 #line 2495 "yacc_sql.tab.c"
     break;
 
   case 135: /* comOp: GT  */
 #line 930 "yacc_sql.y"
-         { CONTEXT->comp = GREAT_THAN; }
+         { CONTEXT->comp[CONTEXT->condition_level] = GREAT_THAN; }
 #line 2501 "yacc_sql.tab.c"
     break;
 
   case 136: /* comOp: LE  */
 #line 931 "yacc_sql.y"
-         { CONTEXT->comp = LESS_EQUAL; }
+         { CONTEXT->comp[CONTEXT->condition_level] = LESS_EQUAL; }
 #line 2507 "yacc_sql.tab.c"
     break;
 
   case 137: /* comOp: GE  */
 #line 932 "yacc_sql.y"
-         { CONTEXT->comp = GREAT_EQUAL; }
+         { CONTEXT->comp[CONTEXT->condition_level] = GREAT_EQUAL; }
 #line 2513 "yacc_sql.tab.c"
     break;
 
   case 138: /* comOp: NE  */
 #line 933 "yacc_sql.y"
-         { CONTEXT->comp = NOT_EQUAL; }
+         { CONTEXT->comp[CONTEXT->condition_level] = NOT_EQUAL; }
 #line 2519 "yacc_sql.tab.c"
     break;
 
   case 139: /* comOp: IS NOT  */
 #line 934 "yacc_sql.y"
-             {CONTEXT->comp = OP_IS_NOT; }
+             {CONTEXT->comp[CONTEXT->condition_level] = OP_IS_NOT; }
 #line 2525 "yacc_sql.tab.c"
     break;
 
   case 140: /* comOp: IS  */
 #line 935 "yacc_sql.y"
-         {CONTEXT->comp = OP_IS; }
+         {CONTEXT->comp[CONTEXT->condition_level] = OP_IS; }
 #line 2531 "yacc_sql.tab.c"
     break;
 
   case 141: /* comOp: IN  */
 #line 936 "yacc_sql.y"
-             { CONTEXT->comp = OP_IN; }
+             { CONTEXT->comp[CONTEXT->condition_level] = OP_IN; }
 #line 2537 "yacc_sql.tab.c"
     break;
 
   case 142: /* comOp: NOT IN  */
 #line 937 "yacc_sql.y"
-                 {CONTEXT->comp = OP_NOT_IN; }
+                 {CONTEXT->comp[CONTEXT->condition_level] = OP_NOT_IN; }
 #line 2543 "yacc_sql.tab.c"
     break;
 

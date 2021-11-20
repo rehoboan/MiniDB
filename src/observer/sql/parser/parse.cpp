@@ -225,6 +225,7 @@ void condition_init(Condition *condition, CompOp comp,
                     int left_is_attr, RelAttr *left_attr, Value *left_value,
                     int right_is_attr, RelAttr *right_attr, Value *right_value) {
   condition->comp = comp;
+  printf("@@@@@@@@@CONDITION INIT@@@@@@@@@+%d\n", condition->comp);
   condition->left_is_attr = left_is_attr;
   if (left_is_attr) {
     condition->left_attr = *left_attr;
@@ -305,6 +306,7 @@ void selects_append_conditions(Selects *selects, Condition conditions[], size_t 
 void selects_append_condition(Selects *selects, Condition *condition, size_t select_num) {
   SubSelects &subselect = selects->subselects[select_num];
   subselect.conditions[subselect.condition_num++] = *condition;
+  printf("@@@@@@@@@APPEND CONDITION@@@@@@@@@+%d\n", condition->comp);
 }
 
 void selects_append_orders(Selects *selects, OrderDescription orders[], size_t order_num, size_t select_num){
