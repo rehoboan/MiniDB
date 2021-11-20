@@ -47,7 +47,7 @@ void modify_return_value(int type, ReturnValue &ret, const char *data);
 int compare_data(int left_type, const char *left_data, int right_type, const char *right_data);
 int in_op(int left_type, const char *left_data, int right_type, void *right_data_head, size_t right_data_num);
 const ReturnValue switch_data_type(int source_type, int target_type, const char *data);
-std::string time_t_to_str(time_t time);
+std::string time_t_to_str(std::time_t time);
 class ConditionFilter {
 public:
 

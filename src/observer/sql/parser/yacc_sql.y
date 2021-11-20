@@ -456,6 +456,7 @@ select:				/*  select 语句的语法解析树*/
 		selects_append_groups(&CONTEXT->ssql->sstr.selection, CONTEXT->groups, CONTEXT->group_num, 0);
 		CONTEXT->ssql->flag = SCF_SELECT;
 
+		update_select_num(&CONTEXT->ssql->sstr.selection);
 		//临时变量清0
 		CONTEXT->condition_length = 0;
 		CONTEXT->value_length = 0;
