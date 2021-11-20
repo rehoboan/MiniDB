@@ -17,7 +17,6 @@ See the Mulan PSL v2 for more details. */
 
 
 #include <stddef.h>
-#include <time.h>
 
 
 #define NULL_VALUE (1<<31)
