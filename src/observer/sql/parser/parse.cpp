@@ -262,20 +262,20 @@ void attr_info_destroy(AttrInfo *attr_info) {
 void selects_init(Selects *selects, ...);
 void selects_append_attribute(Selects *selects, RelAttr *rel_attr, size_t select_num) {
   printf("select_num:%d\n", select_num);
-  SubSelects &subselect = selects->subselects[select_num];
+  SubSelects subselect = selects->subselects[select_num];
   subselect.attributes[subselect.attr_num++] = *rel_attr;
   printf("out of selects_append_attribute func\n");
 }
 void selects_append_relation(Selects *selects, const char *relation_name, size_t select_num) {
   std::cout<<"select_num   "<<select_num<<std::endl;
   std::cout<<"relationname    "<<relation_name<<std::endl;
-  SubSelects &subselect = selects->subselects[select_num];
+  SubSelects subselect = selects->subselects[select_num];
     std::cout<<"relationnum     "<<subselect.relation_num<<std::endl;
   subselect.relations[subselect.relation_num++] = strdup(relation_name);
 }
 
 void selects_append_conditions(Selects *selects, Condition conditions[], size_t condition_num, size_t select_num) {
-  SubSelects &subselect = selects->subselects[selects->select_num];
+  SubSelects subselect = selects->subselects[selects->select_num];
   assert(condition_num <= sizeof(subselect.conditions)/sizeof(subselect.conditions[0]));
   for (size_t i = 0; i < condition_num; i++) {
     subselect.conditions[i] = conditions[i];
@@ -284,12 +284,12 @@ void selects_append_conditions(Selects *selects, Condition conditions[], size_t 
 }
 
 void selects_append_condition(Selects *selects, Condition *condition, size_t select_num) {
-  SubSelects &subselect = selects->subselects[select_num];
+  SubSelects subselect = selects->subselects[select_num];
   subselect.conditions[subselect.condition_num++] = *condition;
 }
 
 void selects_append_orders(Selects *selects, OrderDescription orders[], size_t order_num, size_t select_num){
-  SubSelects &subselect = selects->subselects[select_num];
+  SubSelects subselect = selects->subselects[select_num];
   for (size_t i = 0; i < order_num; i++) {
     subselect.order_des[i] = orders[i];
   }
@@ -297,7 +297,7 @@ void selects_append_orders(Selects *selects, OrderDescription orders[], size_t o
 }
 
 void selects_append_groups(Selects *selects, GroupByDescription groups[], size_t group_num, size_t select_num){
-  SubSelects &subselect = selects->subselects[select_num];
+  SubSelects subselect = selects->subselects[select_num];
   for (size_t i = 0; i < group_num; i++) {
     subselect.group_des[i] = groups[i];
   }
