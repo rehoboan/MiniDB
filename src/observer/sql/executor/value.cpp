@@ -194,7 +194,7 @@ int in_op(int left_type, const char *left_data, int right_type, void *right_data
       return res;
     }
     case CHARS: {
-      MultiValueLinkNode<const char *> *right = (MultiValueLinkNode<const char *> *)(right_data_head);
+      MultiValueLinkNode *right = (MultiValueLinkNode *)(right_data_head);
       while(right){
         if(!strcmp(left_data, right->value)){
           return 1;
@@ -204,7 +204,7 @@ int in_op(int left_type, const char *left_data, int right_type, void *right_data
       return res;
     }
     case DATES: {
-      MultiValueLinkNode<const char *> *right = (MultiValueLinkNode<const char *> *)(right_data_head);
+      MultiValueLinkNode *right = (MultiValueLinkNode *)(right_data_head);
       while(right){
         const char *right_data = right->value;
         if(!strcmp(left_data, right_data)){

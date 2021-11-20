@@ -95,6 +95,14 @@ typedef struct _Value {
 } Value;
 
 
+typedef struct MultiValueLinkNode {
+  const char* value;
+
+  struct MultiValueLinkNode *next_value;
+
+};
+
+
 typedef struct _AggValue {
   union {
     int int_value;

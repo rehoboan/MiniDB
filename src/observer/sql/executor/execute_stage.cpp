@@ -685,13 +685,13 @@ RC ExecuteStage::do_select_recur(const char *db, Selects &selects, size_t &idx, 
           break;
         case CHARS: {
           //如果是多个值，搞一个链表，value里的data作为头指针
-          MultiValueLinkNode<const char *> *p = new MultiValueLinkNode<const char *>();
+          MultiValueLinkNode *p = new MultiValueLinkNode();
           p->value = ((std::string *)res_tuple.get(0).get_value())->c_str();
-          MultiValueLinkNode<const char *> *pre = nullptr;
+          MultiValueLinkNode *pre = nullptr;
           condition.right_value.data = (void *)p;
           for(int i=1; i < size; i++) {
             pre = p;
-            p = new MultiValueLinkNode<const char *>();
+            p = new MultiValueLinkNode();
             p->value = ((std::string *)res_tuple.get(i).get_value())->c_str();
             pre->next_value = p;
           }
@@ -699,13 +699,13 @@ RC ExecuteStage::do_select_recur(const char *db, Selects &selects, size_t &idx, 
           break;
         case DATES: {
           //如果是多个值，搞一个链表，value里的data作为头指针
-          MultiValueLinkNode<const char *> *p = new MultiValueLinkNode<const char *>();
+          MultiValueLinkNode *p = new MultiValueLinkNode();
           p->value = strdup((const char *)(((const DateValue &)res_tuple.get(0)).get_value()));
-          MultiValueLinkNode<const char *> *pre = nullptr;
+          MultiValueLinkNode *pre = nullptr;
           condition.right_value.data = (void *)p;
           for(int i=1; i < size; i++) {
             pre = p;
-            p = new MultiValueLinkNode<const char *>();
+            p = new MultiValueLinkNode();
             p->value = strdup((const char *)(((const DateValue &)res_tuple.get(0)).get_value()));
             pre->next_value = p;
           }

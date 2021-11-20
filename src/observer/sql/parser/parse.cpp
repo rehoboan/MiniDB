@@ -175,18 +175,18 @@ void value_destroy(Value *value) {
       free(value->data);
       break;
     case DATES: {
-      MultiValueLinkNode<const char *> *p = (MultiValueLinkNode<const char *> *)(value->data);
+      MultiValueLinkNode *p = (MultiValueLinkNode *)(value->data);
       while(p) {
-        MultiValueLinkNode<const char *> *pn = p->next_value;
+        MultiValueLinkNode *pn = p->next_value;
         delete(p);
         p = pn;
       }
     }
       break;
     case CHARS: {
-      MultiValueLinkNode<const char *> *p = (MultiValueLinkNode<const char *> *)(value->data);
+      MultiValueLinkNode *p = (MultiValueLinkNode *)(value->data);
       while(p) {
-        MultiValueLinkNode<const char *> *pn = p->next_value;
+        MultiValueLinkNode *pn = p->next_value;
         delete(p);
         p = pn;
       }
