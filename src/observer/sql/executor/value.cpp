@@ -170,6 +170,10 @@ int compare_data(int left_type, const char *left_data, int right_type, const cha
 
 int in_op(int left_type, const char *left_data, int right_type, void *right_data_head, size_t right_data_num) {
   int res = 0;
+  if(right_data_head == nullptr) {
+    //为空，则not in为true
+    return res;
+  }
   switch (left_type) {
     case INTS: {
       int left = *(int*)left_data;

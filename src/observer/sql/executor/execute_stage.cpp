@@ -504,11 +504,17 @@ RC ExecuteStage::do_sub_select(bool is_sub, const char *db, const SubSelects &su
         LOG_WARN("The column of required columns is non-exist in the table");
         return RC::SCHEMA_FIELD_MISSING;
       }
-      const std::vector<Tuple> &tuples = res_table.tuples();
-      for(const Tuple &t : tuples) {
-        const std::vector<std::shared_ptr<TupleValue>> &values = t.values();
-        res_tuple.add(values[idx]);
+      if(res_table.size() > 0) {
+        const std::vector<Tuple> &tuples = res_table.tuples();
+        for(const Tuple &t : tuples) {
+          const std::vector<std::shared_ptr<TupleValue>> &values = t.values();
+          res_tuple.add(values[idx]);
+        }        
+      } else {
+        //查询为空
+        res_tuple.add();
       }
+
       return rc;
     }
     res_table.print(ss, select_columns, is_multi_table);
@@ -547,6 +553,7 @@ RC ExecuteStage::do_sub_select(bool is_sub, const char *db, const SubSelects &su
     if(subselect.group_num == 0){
       Tuple agg_res;
       rc = agg_node.execute(agg_res, agg_columns, nullptr, select_columns, selected_group_infos);
+      std::cout<<"++++aggresvalue:++++++"<<agg_res.size();
       agg_res_v.add(std::move(agg_res));
     }else{
       for(auto &it : group_map){
@@ -643,78 +650,83 @@ RC ExecuteStage::do_select_recur(const char *db, Selects &selects, size_t &idx, 
         return rc;
       }
       //利用下层传来的结果修改condition的rightvalue
-      int type = res_tuple.get(0).get_type();
-      size_t size = res_tuple.size();
-      if(size == 0) {
-          //nothing todo
-          //如果返回的size为0，则说明下层查询为空，继续循环，但是condition filter过滤的时候要进行判断
-          //判断该condition为无效。（判断方法为condition的right value的type为SUBSELECT）
-          continue;
-      }
-      if(size > 1 && !(condition.comp == OP_IN || condition.comp == OP_NOT_IN)) {
-        LOG_ERROR("Only IN operation support set data");
-        char err[256];
-        sprintf(err, "FAILURE");
-        session_event->set_response(err);
-        return RC::MISUSE;
-      }
-      //现在condition 的right value的type还是SUBSELECT，修改value的type和num
+      bool is_empty = res_tuple.get_pointer(0)->is_null();
+      if(!is_empty) {
+        std::cout<<"^^^^^^Return table size : ^^^^^^^^^^^"<<res_tuple.size()<<std::endl;
+        int size = res_tuple.size();
+        int type = res_tuple.get(0).get_type();
+        if(size > 1 && !(condition.comp == OP_IN || condition.comp == OP_NOT_IN)) {
+          LOG_ERROR("Only IN operation support set data");
+          char err[256];
+          sprintf(err, "FAILURE");
+          session_event->set_response(err);
+          return RC::MISUSE;
+        }
+        //现在condition 的right value的type还是SUBSELECT，修改value的type和num
 
-      condition.right_value.type = type;
-      condition.right_value.num = size;
-      std::cout<<"****************value type"<<type<<std::endl;
-      switch(type) {
-        case INTS: {
-          condition.right_value.data = malloc(sizeof(int) * size);
-          int *head = (int *)condition.right_value.data;
-          for(int i=0; i < size; i++) {
-            int value_int = *(int *)res_tuple.get(i).get_value();
-            std::cout<<"****************value int"<<value_int<<std::endl;
-            head[i] = value_int;
+        condition.right_value.type = type;
+        condition.right_value.num = size;
+        std::cout<<"****************value type"<<type<<std::endl;
+        switch(type) {
+          case INTS: {
+            condition.right_value.data = malloc(sizeof(int) * size);
+            int *head = (int *)condition.right_value.data;
+            for(int i=0; i < size; i++) {
+              int value_int = *(int *)res_tuple.get(i).get_value();
+              std::cout<<"****************value int"<<value_int<<std::endl;
+              head[i] = value_int;
+            }
           }
-        }
-          break;
-        case FLOATS: {
-          condition.right_value.data = malloc(sizeof(float) * size);
-          float *head = (float *)condition.right_value.data;
-          for(int i=0; i < size; i++) {
-            float value_float = *(float *)res_tuple.get(i).get_value();
-            std::cout<<"****************value float"<<value_float<<std::endl;
-            head[i] = value_float;
+            break;
+          case FLOATS: {
+            condition.right_value.data = malloc(sizeof(float) * size);
+            float *head = (float *)condition.right_value.data;
+            for(int i=0; i < size; i++) {
+              float value_float = *(float *)res_tuple.get(i).get_value();
+              std::cout<<"****************value float"<<value_float<<std::endl;
+              head[i] = value_float;
+            }
           }
-        }
-          break;
-        case CHARS: {
-          //如果是多个值，搞一个链表，value里的data作为头指针
-          MultiValueLinkNode *p = new MultiValueLinkNode();
-          p->value = ((std::string *)res_tuple.get(0).get_value())->c_str();
-          MultiValueLinkNode *pre = nullptr;
-          condition.right_value.data = (void *)p;
-          for(int i=1; i < size; i++) {
-            pre = p;
-            p = new MultiValueLinkNode();
-            p->value = ((std::string *)res_tuple.get(i).get_value())->c_str();
-            pre->next_value = p;
+            break;
+          case CHARS: {
+            //如果是多个值，搞一个链表，value里的data作为头指针
+            MultiValueLinkNode *p = new MultiValueLinkNode();
+            p->value = ((std::string *)res_tuple.get(0).get_value())->c_str();
+            MultiValueLinkNode *pre = nullptr;
+            condition.right_value.data = (void *)p;
+            for(int i=1; i < size; i++) {
+              pre = p;
+              p = new MultiValueLinkNode();
+              p->value = ((std::string *)res_tuple.get(i).get_value())->c_str();
+              pre->next_value = p;
+            }
           }
-        }
-          break;
-        case DATES: {
-          //如果是多个值，搞一个链表，value里的data作为头指针
-          MultiValueLinkNode *p = new MultiValueLinkNode();
-          p->value = strdup((const char *)(((const DateValue &)res_tuple.get(0)).get_value()));
-          MultiValueLinkNode *pre = nullptr;
-          condition.right_value.data = (void *)p;
-          for(int i=1; i < size; i++) {
-            pre = p;
-            p = new MultiValueLinkNode();
+            break;
+          case DATES: {
+            //如果是多个值，搞一个链表，value里的data作为头指针
+            MultiValueLinkNode *p = new MultiValueLinkNode();
             p->value = strdup((const char *)(((const DateValue &)res_tuple.get(0)).get_value()));
-            pre->next_value = p;
+            MultiValueLinkNode *pre = nullptr;
+            condition.right_value.data = (void *)p;
+            for(int i=1; i < size; i++) {
+              pre = p;
+              p = new MultiValueLinkNode();
+              p->value = strdup((const char *)(((const DateValue &)res_tuple.get(0)).get_value()));
+              pre->next_value = p;
+            }
           }
+            break;
+          default:
+            break;
         }
-          break;
-        default:
-          break;
+      } else {
+        //返回空表
+        std::cout<<"^^^^^^Return empty table^^^^^^^^^^^"<<std::endl;
+        condition.right_value.data = nullptr;
+        condition.right_value.num = 0;
+        condition.right_value.type = UNDEFINED;
       }
+
     }
   }
 

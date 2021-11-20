@@ -121,11 +121,12 @@ RC DefaultConditionFilter::init(Table &table, const Condition &condition)
   } else {
     right.is_attr = false;
     right.value = condition.right_value.data;
-    type_right = condition.right_value.type;
+    right.value_num = condition.right_value.num;
+    //子查询返回空表，在这里给空value的类型赋值
+    type_right = (right.value_num) ? condition.right_value.type : type_left;
     right.attr_type = condition.right_value.type;
     right.attr_length = 0;
     right.attr_offset = 0;
-    right.value_num = condition.right_value.num;
   }
 
   if (!field_type_compare_compatible_table[TYPE(type_left)][TYPE(type_right)]) {
@@ -230,7 +231,11 @@ bool DefaultConditionFilter::filter(const Record &rec) const
       right_value = tmp_.c_str();
     }
   }else {
-    if(comp_op_ < OP_IN) {
+    //这里即使油表为值，也仍然有可能为空
+    if(right_.value_num == 0 && comp_op_ < OP_NOT_IN) {
+      //直接返回false
+      return false;
+    }else if(comp_op_ < OP_IN) {
       right_value = (char *)right_.value;
     }
     right_null = (right_attr_type_ == NULL_VALUE);
