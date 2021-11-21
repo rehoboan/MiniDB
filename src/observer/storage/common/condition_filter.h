@@ -48,7 +48,7 @@ struct ConDesc {
 struct ExprAttrDesc {
   int attr_type;
   int attr_offset;
-}
+};
 
 void modify_return_value(int type, ReturnValue &ret, const char *data);
 int compare_data(int left_type, const char *left_data, int right_type, const char *right_data);

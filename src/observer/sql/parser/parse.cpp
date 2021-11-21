@@ -372,6 +372,9 @@ void selects_append_groups(Selects *selects, GroupByDescription groups[], size_t
 
 void selects_append_expression(Selects *selects, Expression *expressions, size_t select_num){
   SubSelects &subselect = selects->subselects[select_num];
+  RelAttr attr;
+  relation_attr_init(&attr, "**", "**");
+  subselect.attributes[subselect.relation_num] =  attr;
   subselect.expr_des[subselect.attr_num++] = *expressions;
 }
 
